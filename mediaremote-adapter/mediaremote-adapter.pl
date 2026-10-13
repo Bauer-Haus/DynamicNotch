@@ -84,6 +84,22 @@ sub fail {
   exit 1;
 }
 
+# A stream runs until killed. If the app that launched it is force-quit or crashes it
+# can't stop us, so a tiny watchdog ends the stream once that app is gone. It forks
+# before any framework is loaded, and only checks every 2 seconds.
+if (grep { $_ eq "stream" } @ARGV) {
+  my $app_pid = getppid();
+  my $stream_pid = $$;
+  my $watchdog = fork();
+  if (defined $watchdog && $watchdog == 0) {
+    while (kill(0, $app_pid) && kill(0, $stream_pid)) {
+      sleep 2;
+    }
+    kill('TERM', $stream_pid);
+    exit 0;
+  }
+}
+
 fail "Framework path not provided" unless @ARGV >= 1;
 
 my $framework_path = shift @ARGV;
