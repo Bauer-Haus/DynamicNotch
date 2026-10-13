@@ -37,6 +37,8 @@ class MusicManager: ObservableObject {
     @Published var isPlayerIdle: Bool = true
     @Published var animations: BoringAnimations = .init()
     @Published var avgColor: NSColor = .white
+    /// Blurred album art the visualizer bars show through (nil until the first art loads).
+    @Published var visualizerBackdrop: NSImage?
     @Published var bundleIdentifier: String? = nil
     @Published var songDuration: TimeInterval = 0
     @Published var elapsedTime: TimeInterval = 0
@@ -552,6 +554,10 @@ class MusicManager: ObservableObject {
             if usesAverageColor {
                 self.calculateAverageColor()
             }
+        }
+        newAlbumArt.visualizerBackdrop { [weak self] image in
+            guard let self, self.albumArt === newAlbumArt else { return }
+            withAnimation(.smooth) { self.visualizerBackdrop = image }
         }
     }
 

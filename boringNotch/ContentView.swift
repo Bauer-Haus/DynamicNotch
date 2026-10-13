@@ -301,14 +301,18 @@ struct ContentView: View {
 
             HStack {
                 if useMusicVisualizer {
-                    Rectangle()
-                        .fill(
-                            Defaults[.coloredSpectrogram]
-                                ? Color(nsColor: musicManager.avgColor).gradient
-                                : Color.gray.gradient
-                        )
-                        .frame(width: 50, alignment: .center)
-                        .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    // Like the iPhone: the bars are windows onto blurred album art.
+                    Group {
+                        if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
+                            Image(nsImage: backdrop)
+                                .resizable()
+                                .interpolation(.high)
+                        } else {
+                            Rectangle().fill(Color.gray.gradient)
+                        }
+                    }
+                    .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
+                    .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                         .mask {
                             AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
                                 .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))

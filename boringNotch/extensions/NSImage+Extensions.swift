@@ -16,6 +16,53 @@ import ImageIO
 
 extension NSImage {
 
+    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
+
+    /// The colour layer behind the visualizer bars, matching the iPhone Dynamic Island: the
+    /// album art shrunk, heavily blurred, a little less saturated and darker, so each bar takes the
+    /// colours of the part of the art behind it (measured: hue kept, saturation ~0.75x, brightness ~0.85x).
+    /// Made once per track off the main thread; the bars only mask it.
+    func visualizerBackdrop(completion: @escaping (NSImage?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            let side: CGFloat = 32
+            let input = CIImage(cgImage: cgImage)
+            let scale = side / max(input.extent.width, input.extent.height)
+
+            let resize = CIFilter.lanczosScaleTransform()
+            resize.inputImage = input
+            resize.scale = Float(scale)
+            resize.aspectRatio = 1
+
+            let blur = CIFilter.gaussianBlur()
+            // Clamping first keeps the edges from fading to transparent.
+            blur.inputImage = resize.outputImage?.clampedToExtent()
+            blur.radius = 4
+
+            let colour = CIFilter.colorControls()
+            colour.inputImage = blur.outputImage
+            colour.saturation = 0.75
+
+            // The iPhone's bars sit ~15% darker than the blurred art (measured on the same song).
+            let exposure = CIFilter.exposureAdjust()
+            exposure.inputImage = colour.outputImage
+            exposure.ev = -0.5  // in linear light; about 0.85x on screen
+
+            let rect = CGRect(x: 0, y: 0, width: side, height: side)
+            guard let output = exposure.outputImage?.cropped(to: rect),
+                  let result = Self.ciContext.createCGImage(output, from: rect)
+            else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            let image = NSImage(cgImage: result, size: NSSize(width: side, height: side))
+            DispatchQueue.main.async { completion(image) }
+        }
+    }
+
     /// Decodes image data straight to a copy no larger than `maxPixelSize` on its longest
     /// side, without ever decoding the full-size image (album art is often 3000 px square).
     static func thumbnail(from data: Data, maxPixelSize: Int) -> NSImage? {
