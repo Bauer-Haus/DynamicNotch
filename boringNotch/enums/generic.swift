@@ -26,16 +26,7 @@ public enum NotchState {
 
 
 
-enum DownloadIndicatorStyle: String, Defaults.Serializable {
-    case progress = "Progress"
-    case percentage = "Percentage"
-}
 
-enum DownloadIconStyle: String, Defaults.Serializable {
-    case onlyAppIcon = "Only app icon"
-    case onlyIcon = "Only download icon"
-    case iconAndAppIcon = "Icon and app icon"
-}
 
 
 enum WindowHeightMode: String, Defaults.Serializable {

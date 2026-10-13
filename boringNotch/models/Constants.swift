@@ -54,15 +54,6 @@ enum SneakPeekStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
     var id: String { self.rawValue }
 }
 
-// Action to perform when Option (⌥) is held while pressing media keys
-enum OptionKeyAction: String, CaseIterable, Identifiable, Defaults.Serializable {
-    case openSettings = "Open System Settings"
-    case showHUD = "Show HUD"
-    case none = "No Action"
-
-    var id: String { self.rawValue }
-}
-
 extension Defaults.Keys {
     // MARK: General
     static let menubarIcon = Key<Bool>("menubarIcon", default: true)
@@ -128,30 +119,6 @@ extension Defaults.Keys {
         "musicControlSlotLimit",
         default: MusicControlButton.defaultLayout.count
     )
-    
-    // MARK: Battery
-    static let showPowerStatusNotifications = Key<Bool>("showPowerStatusNotifications", default: true)
-    static let showBatteryIndicator = Key<Bool>("showBatteryIndicator", default: true)
-    static let showBatteryPercentage = Key<Bool>("showBatteryPercentage", default: true)
-    static let showPowerStatusIcons = Key<Bool>("showPowerStatusIcons", default: true)
-    
-    // MARK: Downloads
-    static let enableDownloadListener = Key<Bool>("enableDownloadListener", default: true)
-    static let enableSafariDownloads = Key<Bool>("enableSafariDownloads", default: true)
-    static let selectedDownloadIndicatorStyle = Key<DownloadIndicatorStyle>("selectedDownloadIndicatorStyle", default: DownloadIndicatorStyle.progress)
-    static let selectedDownloadIconStyle = Key<DownloadIconStyle>("selectedDownloadIconStyle", default: DownloadIconStyle.onlyAppIcon)
-    
-    // MARK: HUD
-    static let hudReplacement = Key<Bool>("hudReplacement", default: false)
-    static let inlineHUD = Key<Bool>("inlineHUD", default: false)
-    static let enableGradient = Key<Bool>("enableGradient", default: false)
-    static let systemEventIndicatorShadow = Key<Bool>("systemEventIndicatorShadow", default: false)
-    static let systemEventIndicatorUseAccent = Key<Bool>("systemEventIndicatorUseAccent", default: false)
-    static let showOpenNotchHUD = Key<Bool>("showOpenNotchHUD", default: true)
-    static let showOpenNotchHUDPercentage = Key<Bool>("showOpenNotchHUDPercentage", default: true)
-    static let showClosedNotchHUDPercentage = Key<Bool>("showClosedNotchHUDPercentage", default: false)
-    // Option key modifier behaviour for media keys
-    static let optionKeyAction = Key<OptionKeyAction>("optionKeyAction", default: OptionKeyAction.openSettings)
     
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)

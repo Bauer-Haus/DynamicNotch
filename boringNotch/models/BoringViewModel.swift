@@ -24,7 +24,6 @@ class BoringViewModel: NSObject, ObservableObject {
     @Published var hideOnClosed: Bool = true
 
     @Published var edgeAutoOpenActive: Bool = false
-    @Published var isBatteryPopoverActive: Bool = false
 
     @Published var screenUUID: String?
 
@@ -137,7 +136,6 @@ class BoringViewModel: NSObject, ObservableObject {
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
-        self.isBatteryPopoverActive = false
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
     }
