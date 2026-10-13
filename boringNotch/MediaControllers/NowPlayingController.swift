@@ -68,6 +68,9 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     private var process: Process?
     private var pipeHandler: JSONLinesPipeHandler?
     private var streamTask: Task<Void, Never>?
+    /// Wait before restarting the helper after it exits; doubles on each quick failure.
+    private var restartDelay: TimeInterval = 0.5
+    static let maxRestartDelay: TimeInterval = 30
 
     // MARK: - Initialization
     init?() {
@@ -206,23 +209,40 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         self.process = process
         self.pipeHandler = pipeHandler
 
+        let started = Date()
         do {
             try process.run()
-            streamTask = Task { [weak self] in
-                await self?.processJSONStream()
-            }
         } catch {
-            assertionFailure("Failed to launch mediaremote-adapter.pl: \(error)")
+            print("[NowPlaying] Failed to launch mediaremote-adapter.pl: \(error)")
+            await helperExited(ranFor: 0)
+            return
+        }
+        // Holds self only weakly (per update), so the controller can be released, which
+        // cancels this task and stops the helper.
+        streamTask = Task { [weak self, pipeHandler] in
+            await pipeHandler.readJSONLines(as: NowPlayingUpdate.self) { [weak self] update in
+                await self?.handleAdapterUpdate(update)
+            }
+            // The stream only ends when the helper exits (crashed, killed, ...).
+            guard !Task.isCancelled else { return }
+            await self?.helperExited(ranFor: Date().timeIntervalSince(started))
         }
     }
 
-    // MARK: - Async Stream Processing
-    private func processJSONStream() async {
-        guard let pipeHandler = self.pipeHandler else { return }
-        
-        await pipeHandler.readJSONLines(as: NowPlayingUpdate.self) { [weak self] update in
-            await self?.handleAdapterUpdate(update)
-        }
+    /// Restarts the helper so song info keeps coming. A helper that ran for a while gets a
+    /// quick restart; one that keeps failing backs off up to `maxRestartDelay`.
+    private func helperExited(ranFor seconds: TimeInterval) async {
+        restartDelay = Self.nextRestartDelay(after: restartDelay, ranFor: seconds)
+        print("[NowPlaying] Helper stopped after \(Int(seconds)) s; restarting in \(Int(restartDelay)) s")
+        try? await Task.sleep(for: .seconds(restartDelay))
+        guard !Task.isCancelled else { return }
+        if let process, process.isRunning { process.terminate() }
+        await pipeHandler?.close()
+        await setupNowPlayingObserver()
+    }
+
+    static func nextRestartDelay(after current: TimeInterval, ranFor seconds: TimeInterval) -> TimeInterval {
+        seconds > 60 ? 1 : min(max(1, current * 2), maxRestartDelay)
     }
 
     // MARK: - Update Methods
