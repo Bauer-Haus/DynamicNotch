@@ -7,7 +7,6 @@
 
 import AVFoundation
 import Defaults
-import KeyboardShortcuts
 import LaunchAtLogin
 import Sparkle
 import SwiftUI
@@ -35,9 +34,6 @@ struct SettingsView: View {
                 NavigationLink(value: "Media") {
                     Label("Media", systemImage: "play.laptopcomputer")
                 }
-                NavigationLink(value: "Shortcuts") {
-                    Label("Shortcuts", systemImage: "keyboard")
-                }
                 // NavigationLink(value: "Extensions") {
                 //     Label("Extensions", systemImage: "puzzlepiece.extension")
                 // }
@@ -61,8 +57,6 @@ struct SettingsView: View {
                     Appearance()
                 case "Media":
                     Media()
-                case "Shortcuts":
-                    Shortcuts()
                 case "Extensions":
                     GeneralSettings()
                 case "Advanced":
@@ -735,21 +729,10 @@ struct Appearance: View {
                     }
                 }
             }
-
-            Section {
-                Defaults.Toggle(key: .showNotHumanFace) {
-                    Text("Show cool face animation while inactive")
-                }
-            } header: {
-                HStack {
-                    Text("Additional features")
-                }
-            }
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Appearance")
     }
-
 }
 
 struct Advanced: View {
@@ -1065,29 +1048,6 @@ struct AccentCircleButton: View {
     }
 }
 
-struct Shortcuts: View {
-    var body: some View {
-        Form {
-            Section {
-                KeyboardShortcuts.Recorder("Toggle Sneak Peek:", name: .toggleSneakPeek)
-            } header: {
-                Text("Media")
-            } footer: {
-                Text(
-                    "Sneak Peek shows the media title and artist under the notch for a few seconds."
-                )
-                .multilineTextAlignment(.trailing)
-                .foregroundStyle(.secondary)
-                .font(.caption)
-            }
-            Section {
-                KeyboardShortcuts.Recorder("Toggle Notch Open:", name: .toggleNotchOpen)
-            }
-        }
-        .accentColor(.effectiveAccent)
-        .navigationTitle("Shortcuts")
-    }
-}
 
 func proFeatureBadge() -> some View {
     Text("Upgrade to Pro")

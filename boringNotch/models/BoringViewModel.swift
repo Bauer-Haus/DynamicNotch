@@ -140,12 +140,4 @@ class BoringViewModel: NSObject, ObservableObject {
         self.edgeAutoOpenActive = false
     }
 
-    func closeHello() {
-        Task { @MainActor in
-            withAnimation(animationLibrary.animation) {
-                coordinator.helloAnimationRunning = false
-                close()
-            }
-        }
-    }
 }
