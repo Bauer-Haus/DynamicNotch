@@ -188,7 +188,9 @@ struct MusicControlsView: View {
     }
 
     private var musicSlider: some View {
-        TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
+        // The bar moves ~1 pt per second and the label shows whole seconds, so twice a
+        // second is enough; nothing redraws while paused.
+        TimelineView(.animation(minimumInterval: 0.5, paused: !musicManager.isPlaying || musicManager.playbackRate == 0)) { timeline in
             MusicSliderView(
                 sliderValue: $sliderValue,
                 duration: $musicManager.songDuration,
@@ -476,6 +478,11 @@ struct MusicSliderView: View {
         .onChange(of: currentDate) {
            guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
             sliderValue = MusicManager.shared.estimatedPlaybackPosition(at: currentDate)
+        }
+        // The timeline is paused while music is paused; still follow seeks and track changes.
+        .onChange(of: elapsedTime) {
+            guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
+            sliderValue = MusicManager.shared.estimatedPlaybackPosition()
         }
     }
 
