@@ -139,23 +139,15 @@ class SpotifyController: MediaControllerProtocol {
 
             let currentState = state
 
-            artworkFetchTask = Task {
-                do {
-                    let data = try await ImageService.shared.fetchImageData(from: url)
-
-                    await MainActor.run { [weak self] in
-                        guard let self = self else { return }
-                        var updatedState = currentState
-                        updatedState.artwork = data
-                        self.playbackState = updatedState
-                        self.lastArtworkURL = artworkURL
-                        self.artworkFetchTask = nil
-                    }
-                } catch {
-                    await MainActor.run { [weak self] in
-                        self?.artworkFetchTask = nil
-                    }
-                }
+            artworkFetchTask = Task { @MainActor [weak self] in
+                let data = try? await ImageService.shared.fetchImageData(from: url)
+                guard let self else { return }
+                self.artworkFetchTask = nil
+                guard let data else { return }
+                var updatedState = currentState
+                updatedState.artwork = data
+                self.playbackState = updatedState
+                self.lastArtworkURL = artworkURL
             }
         }
     }
