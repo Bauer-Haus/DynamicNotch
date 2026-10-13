@@ -8,7 +8,6 @@
 import Foundation
 import Combine
 import Defaults
-import MacroVisionKit
 
 @MainActor
 final class FullscreenMediaDetector: ObservableObject {
@@ -20,7 +19,7 @@ final class FullscreenMediaDetector: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// Last full-screen spaces seen, so a setting or music-app change can be re-applied
     /// right away instead of waiting for the next space change.
-    private var spaces: [MacroVisionKit.FullScreenMonitor.SpaceInfo] = []
+    private var spaces: [FullScreenMonitor.SpaceInfo] = []
     
     private init() {
         startMonitoring()

@@ -1,5 +1,5 @@
 {
-  "originHash" : "f54ce551a2e249511e5c9ce3e1c362113704b762c009c9e25b5b31caa18f697f",
+  "originHash" : "caa2dd9df03602d13b8b1284da8b0021d91441561041914ce3125e3bb2e9e054",
   "pins" : [
     {
       "identity" : "defaults",
@@ -29,30 +29,12 @@
       }
     },
     {
-      "identity" : "macrovisionkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TheBoredTeam/MacroVisionKit",
-      "state" : {
-        "revision" : "da481a6be8d8b1bf7fcb218507a72428bbcae7b0",
-        "version" : "0.2.0"
-      }
-    },
-    {
       "identity" : "skylightwindow",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Lakr233/SkyLightWindow",
       "state" : {
         "revision" : "b7bd99f62a0673a99bed4bfd31098ca1dcdd10eb",
         "version" : "1.0.0"
-      }
-    },
-    {
-      "identity" : "sparkle",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sparkle-project/Sparkle",
-      "state" : {
-        "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
-        "version" : "2.9.1"
       }
     },
     {

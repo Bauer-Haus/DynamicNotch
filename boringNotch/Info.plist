@@ -9,14 +9,6 @@
 	</dict>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Boring Notch listens to the audio of your music player so the notch visualizer can move with the music.</string>
-	<key>SUEnableDownloaderService</key>
-	<true/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>

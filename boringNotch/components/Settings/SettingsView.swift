@@ -8,18 +8,11 @@
 import AVFoundation
 import Defaults
 import LaunchAtLogin
-import Sparkle
 import SwiftUI
 
 struct SettingsView: View {
     @State private var selectedTab = "General"
     @State private var accentColorUpdateTrigger = UUID()
-
-    let updaterController: SPUStandardUpdaterController?
-
-    init(updaterController: SPUStandardUpdaterController? = nil) {
-        self.updaterController = updaterController
-    }
 
     var body: some View {
         NavigationSplitView {
@@ -56,15 +49,7 @@ struct SettingsView: View {
                 case "Advanced":
                     Advanced()
                 case "About":
-                    if let controller = updaterController {
-                        About(updaterController: controller)
-                    } else {
-                        // Fallback with a default controller
-                        About(
-                            updaterController: SPUStandardUpdaterController(
-                                startingUpdater: false, updaterDelegate: nil,
-                                userDriverDelegate: nil))
-                    }
+                    About()
                 default:
                     GeneralSettings()
                 }
@@ -408,7 +393,6 @@ struct Media: View {
 
 struct About: View {
     @State private var showBuildNumber: Bool = false
-    let updaterController: SPUStandardUpdaterController
     @Environment(\.openWindow) var openWindow
     var body: some View {
         VStack {
@@ -439,12 +423,10 @@ struct About: View {
                     Text("Version info")
                 }
 
-                UpdaterSettingsView(updater: updaterController.updater)
-
                 HStack(spacing: 30) {
                     Spacer(minLength: 0)
                     Button {
-                        if let url = URL(string: "https://github.com/TheBoredTeam/boring.notch") {
+                        if let url = URL(string: "https://github.com/Bauer-Haus/boring.notch") {
                             NSWorkspace.shared.open(url)
                         }
                     } label: {
@@ -471,13 +453,6 @@ struct About: View {
                     .padding(.horizontal, 10)
             }
             .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .toolbar {
-            //            Button("Welcome window") {
-            //                openWindow(id: "onboarding")
-            //            }
-            //            .controlSize(.extraLarge)
-            CheckForUpdatesView(updater: updaterController.updater)
         }
         .navigationTitle("About")
     }

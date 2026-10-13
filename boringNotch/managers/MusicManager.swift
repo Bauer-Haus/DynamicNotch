@@ -428,7 +428,7 @@ class MusicManager: ObservableObject {
         ]
         guard let url = components.url else { return ("", []) }
         var request = URLRequest(url: url, timeoutInterval: 10)
-        request.setValue("boringNotch (https://github.com/TheBoredTeam/boring.notch)", forHTTPHeaderField: "User-Agent")
+        request.setValue("boringNotch (https://github.com/Bauer-Haus/boring.notch)", forHTTPHeaderField: "User-Agent")
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
