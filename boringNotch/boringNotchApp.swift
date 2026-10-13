@@ -185,6 +185,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.alphaValue = 1
     }
 
+    /// Only one copy may draw the notch, or a stale one sits on top of the working one.
+    /// A new launch (a fresh build, a new export) tells older copies to quit, and quits
+    /// itself if a newer copy announces itself later.
+    static let takeOverNotification = Notification.Name("boringNotch.takeOver")
+
+    private func takeOverFromOtherCopies() {
+        let ownPID = String(ProcessInfo.processInfo.processIdentifier)
+        let center = DistributedNotificationCenter.default()
+        center.addObserver(forName: Self.takeOverNotification, object: nil, queue: .main) { note in
+            guard let sender = note.object as? String, sender != ownPID else { return }
+            NSApp.terminate(nil)
+        }
+        center.postNotificationName(Self.takeOverNotification, object: ownPID, userInfo: nil, deliverImmediately: true)
+
+        // Copies from before this existed don't listen; ask them to quit directly.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            guard let bundleID = Bundle.main.bundleIdentifier else { return }
+            let me = NSRunningApplication.current
+            for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) where app != me {
+                app.terminate()
+            }
+        }
+    }
+
     static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
@@ -192,6 +216,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Unit tests run inside the app; they only need the code, not the notch windows.
         if Self.isRunningTests { return }
+
+        takeOverFromOtherCopies()
 
         // Start tracking display sleep now, so it's known even if music starts while asleep.
         _ = ScreenActivity.shared
