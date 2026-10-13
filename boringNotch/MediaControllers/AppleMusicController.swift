@@ -29,7 +29,10 @@ class AppleMusicController: MediaControllerProtocol {
     }
 
     private var notificationTask: Task<Void, Never>?
-    
+    /// Artwork is only fetched when the track changes; it can be megabytes per transfer.
+    private var artworkTrackID: String?
+    private var artworkData: Data?
+
     // MARK: - Initialization
     init() {
         setupPlaybackStateChangeObserver()
@@ -144,7 +147,12 @@ class AppleMusicController: MediaControllerProtocol {
         updatedState.repeatMode = RepeatMode(rawValue: Int(repeatModeValue)) ?? .off
         let volumePercentage = descriptor.atIndex(9)?.int32Value ?? 50
         updatedState.volume = Double(volumePercentage) / 100.0
-        updatedState.artwork = descriptor.atIndex(10)?.data as Data?
+        let trackID = descriptor.atIndex(10)?.stringValue ?? ""
+        if trackID != artworkTrackID {
+            artworkTrackID = trackID
+            artworkData = trackID.isEmpty ? nil : await fetchArtwork()
+        }
+        updatedState.artwork = artworkData
         let lovedState = descriptor.atIndex(11)?.booleanValue ?? false
         updatedState.isFavorite = lovedState
         updatedState.lastUpdated = Date()
@@ -179,15 +187,10 @@ class AppleMusicController: MediaControllerProtocol {
                     set repeatValue to 3
                 end if
 
-                try
-                    set artData to data of artwork 1 of current track
-                on error
-                    set artData to ""
-                end try
-                
+                set trackID to persistent ID of current track
                 set currentVolume to sound volume
                 set favoriteState to favorited of current track
-                return {playerState, currentTrackName, currentTrackArtist, currentTrackAlbum, trackPosition, trackDuration, shuffleState, repeatValue, currentVolume, artData, favoriteState}
+                return {playerState, currentTrackName, currentTrackArtist, currentTrackAlbum, trackPosition, trackDuration, shuffleState, repeatValue, currentVolume, trackID, favoriteState}
             on error
                 return {false, "Not Playing", "Unknown", "Unknown", 0, 0, false, 0, 50, "", false}
             end try
@@ -196,5 +199,18 @@ class AppleMusicController: MediaControllerProtocol {
         
         return try await AppleScriptHelper.execute(script)
     }
-    
+
+    private func fetchArtwork() async -> Data? {
+        let script = """
+        tell application "Music"
+            try
+                return data of artwork 1 of current track
+            on error
+                return ""
+            end try
+        end tell
+        """
+        guard let data = try? await AppleScriptHelper.execute(script)?.data, !data.isEmpty else { return nil }
+        return data
+    }
 }
