@@ -18,23 +18,30 @@ import SwiftUI
 
 // MARK: - Live audio levels
 
-/// Taps the output audio of the now-playing app and publishes smoothed band levels (0...1).
+/// Taps the output audio of the now-playing app and publishes band levels (0...1).
+///
+/// The analysis reproduces the iPhone Dynamic Island waveform, fitted to 120 fps captures
+/// of test tones, tone volume steps and pink noise: a 4096-sample Hann FFT every 4096
+/// samples (~12 Hz), each bar summing the FFT magnitudes in its band (lightly normalised
+/// by band width), mapped through a power curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to
+/// fill a bar.
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
     static let bandCount = 6
-    /// Band edges in Hz (bandCount + 1 values), measured from the iPhone Dynamic Island
-    /// with test tones: nothing above ~10 kHz moves it.
-    private static let bandEdges: [Float] = [30, 100, 190, 570, 1850, 5000, 10000]
-    /// Where a band sits when it is at its own recent average (0...1).
-    private static let restLevel: Float = 0.4
-    /// dB above a band's recent average needed to reach the top.
-    private static let peakDB: Float = 12
-    /// Per-analysis-frame smoothing (~94 frames/s) for each band's running average (~1.5 s).
-    private static let averageRate: Float = 0.007
+    /// Band edges in Hz (bandCount + 1 values).
+    private static let bandEdges: [Float] = [33.5, 93.75, 189.4, 553.3, 1828, 4945, 9997]
+    /// Per-bar gain in dB applied to the band sum.
+    private static let bandGainDB: [Float] = [2.72, -4.34, 1.75, -0.31, 0.99, -0.82]
+    /// level = clamp(curveScale * (gain * sum / bins^widthExponent)^curveExponent - curveFloor, 0, 1)
+    private static let curveScale: Float = 0.0271261
+    private static let curveExponent: Float = 0.51174
+    private static let curveFloor: Float = 0.11748
+    /// The band sum is divided by (bin count)^widthExponent.
+    private static let widthExponent: Float = 0.09339
 
-    private let fftSize = 1024
-    private let log2n: vDSP_Length = 10
+    private let fftSize = 4096
+    private let log2n: vDSP_Length = 12
     private let queue = DispatchQueue(label: "boringNotch.audioLevelMonitor", qos: .userInteractive)
 
     private var tapID = AudioObjectID(kAudioObjectUnknown)
@@ -44,8 +51,6 @@ final class AudioLevelMonitor {
     private var window: [Float] = []
     private var ring: [Float] = []
     private var sampleRate: Double = 48000
-    private var referenceDB: Float = -40
-    private var bandAverageDB = [Float](repeating: -120, count: bandCount)
     private var startedAt: CFAbsoluteTime = 0
 
     // Touched only on `queue`.
@@ -56,16 +61,24 @@ final class AudioLevelMonitor {
 
     private let lock = NSLock()
     private var _levels = [Float](repeating: 0, count: bandCount)
+    private var _previousLevels = [Float](repeating: 0, count: bandCount)
+    private var _levelsTime: CFAbsoluteTime = 0
+    private var _hopDuration: Double = 4096.0 / 48000.0
     private var _lastCallback: CFAbsoluteTime = 0
     private var _heardSignal = false
 
-    /// Latest band levels, plus whether they are real (tap delivering actual audio).
+    /// Band levels for this moment, plus whether they are real (tap delivering actual audio).
+    /// Like the iPhone, the display glides linearly from the previous analysis to the latest
+    /// one over one analysis period, so bars move in ~85 ms ramps.
     func snapshot() -> (levels: [Float], isLive: Bool) {
         lock.lock(); defer { lock.unlock() }
+        let now = CFAbsoluteTimeGetCurrent()
+        let t = Float(max(0, min(1, (now - _levelsTime) / _hopDuration)))
+        let levels = zip(_previousLevels, _levels).map { $0 + ($1 - $0) * t }
         // A denied permission still delivers buffers, but they are all zeros. Until any
         // non-silent audio has arrived, report not-live so the view keeps animating.
-        let fresh = CFAbsoluteTimeGetCurrent() - _lastCallback < 0.5
-        return (_levels, fresh && _heardSignal)
+        let fresh = now - _lastCallback < 0.5
+        return (levels, fresh && _heardSignal)
     }
 
     /// A view wants live levels. Balanced with `release()`.
@@ -175,10 +188,11 @@ final class AudioLevelMonitor {
 
         fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))
         window = [Float](repeating: 0, count: fftSize)
-        vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+        // Symmetric Hann, unnormalised (the curve constants were fitted with this window).
+        for n in 0 ..< fftSize {
+            window[n] = 0.5 - 0.5 * cosf(2 * .pi * Float(n) / Float(fftSize - 1))
+        }
         ring.removeAll(keepingCapacity: true)
-        referenceDB = -40
-        bandAverageDB = [Float](repeating: -120, count: Self.bandCount)
 
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, agg, queue) { [weak self] _, inData, _, _, _ in
@@ -218,6 +232,7 @@ final class AudioLevelMonitor {
         isRunning = false
         lock.lock()
         _levels = [Float](repeating: 0, count: Self.bandCount)
+        _previousLevels = _levels
         _lastCallback = 0
         _heardSignal = false
         lock.unlock()
@@ -262,7 +277,7 @@ final class AudioLevelMonitor {
 
         while ring.count >= fftSize {
             analyse(Array(ring.prefix(fftSize)))
-            ring.removeFirst(fftSize / 2) // 50% overlap
+            ring.removeFirst(fftSize) // no overlap, like the iPhone (~12 analyses/s)
         }
     }
 
@@ -274,7 +289,7 @@ final class AudioLevelMonitor {
         let half = fftSize / 2
         var real = [Float](repeating: 0, count: half)
         var imag = [Float](repeating: 0, count: half)
-        var power = [Float](repeating: 0, count: half)
+        var magnitude = [Float](repeating: 0, count: half)
 
         real.withUnsafeMutableBufferPointer { rp in
             imag.withUnsafeMutableBufferPointer { ip in
@@ -285,46 +300,36 @@ final class AudioLevelMonitor {
                     }
                 }
                 vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
-                vDSP_zvmags(&split, 1, &power, 1, vDSP_Length(half))
+                vDSP_zvabs(&split, 1, &magnitude, 1, vDSP_Length(half))
             }
         }
+        // vDSP's real FFT is scaled by 2 relative to the plain DFT.
+        var half2: Float = 0.5
+        vDSP_vsmul(magnitude, 1, &half2, &magnitude, 1, vDSP_Length(half))
 
         let edges = Self.bandEdges
         let binHz = Float(sampleRate) / Float(fftSize)
 
-        // Band loudness in dB. Music has much more energy in the bass, so tilt the
-        // spectrum (+3 dB/octave around 1 kHz) to let the treble bars move too.
-        var bandDB = [Float](repeating: -120, count: Self.bandCount)
-        for b in 0 ..< Self.bandCount {
-            let lo = max(1, Int(edges[b] / binHz))
-            let hi = min(half - 1, max(lo + 1, Int(edges[b + 1] / binHz)))
-            var mean: Float = 0
-            power.withUnsafeBufferPointer { p in
-                vDSP_meanv(p.baseAddress! + lo, 1, &mean, vDSP_Length(hi - lo + 1))
-            }
-            let center = sqrtf(edges[b] * edges[b + 1])
-            let tilt = 10 * log10f(center / 1000)
-            bandDB[b] = 10 * log10f(mean + 1e-12) + tilt
-        }
-
-        // Each bar shows movement around its band's own recent average, so a dense, loud
-        // mix rests mid-height and only hits (kick, snare, vocal swells) reach the top.
-        // A slow overall reference pulls every bar down in quiet passages and fades.
-        let loudest = bandDB.max() ?? -120
-        referenceDB = loudest > referenceDB ? referenceDB + (loudest - referenceDB) * 0.05 : max(loudest, referenceDB - 0.03)
-        let gate = max(0, min(1, (loudest - (referenceDB - 30)) / 18))
-
         var out = [Float](repeating: 0, count: Self.bandCount)
         for b in 0 ..< Self.bandCount {
-            if bandAverageDB[b] < -100 { bandAverageDB[b] = bandDB[b] }
-            bandAverageDB[b] += (bandDB[b] - bandAverageDB[b]) * Self.averageRate
-            let above = bandDB[b] - bandAverageDB[b]
-            let level = Self.restLevel + (1 - Self.restLevel) * above / Self.peakDB
-            out[b] = max(0, min(1, level)) * gate
+            // Bins whose centre frequency is in [lo, hi).
+            let lo = max(1, Int(ceilf(edges[b] / binHz)))
+            let hi = min(half, Int(ceilf(edges[b + 1] / binHz)))
+            var sum: Float = 0
+            if hi > lo {
+                magnitude.withUnsafeBufferPointer { m in
+                    vDSP_sve(m.baseAddress! + lo, 1, &sum, vDSP_Length(hi - lo))
+                }
+            }
+            sum *= powf(10, Self.bandGainDB[b] / 20) / powf(Float(max(1, hi - lo)), Self.widthExponent)
+            out[b] = max(0, min(1, Self.curveScale * powf(sum, Self.curveExponent) - Self.curveFloor))
         }
 
         lock.lock()
+        _previousLevels = _levels
         _levels = out
+        _levelsTime = CFAbsoluteTimeGetCurrent()
+        _hopDuration = Double(fftSize) / sampleRate
         lock.unlock()
     }
 
@@ -401,11 +406,12 @@ class AudioSpectrum: NSView {
     private var holdsMonitor = false
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
-    // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots,
-    // update at 30 Hz and move ~0.2 of their range per update in either direction.
+    // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
+    // redraw at 30 Hz. Live levels arrive already interpolated from AudioLevelMonitor.
     private static let widthRatio: CGFloat = 0.106
     private static let pitchRatio: CGFloat = 0.167
     private static let updateInterval: TimeInterval = 1.0 / 30.0
+    /// Glide speed for the random fallback animation (fraction of range per update).
     private static let maxStep: CGFloat = 0.21
     private static let randomInterval: TimeInterval = 0.3
 
@@ -503,9 +509,12 @@ class AudioSpectrum: NSView {
         let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
-            for i in targets.indices where i < live.count {
-                targets[i] = CGFloat(live[i])
+            for i in levels.indices where i < live.count {
+                levels[i] = CGFloat(live[i])
+                targets[i] = levels[i]
             }
+            applyLevels()
+            return
         } else {
             // No real audio (yet): the original random animation.
             if now - lastRandomTick >= Self.randomInterval {
@@ -518,7 +527,6 @@ class AudioSpectrum: NSView {
             }
         }
 
-        // Constant-speed slew, the same up and down (a full swing takes ~5 updates).
         for i in levels.indices {
             levels[i] += max(-Self.maxStep, min(Self.maxStep, targets[i] - levels[i]))
         }
