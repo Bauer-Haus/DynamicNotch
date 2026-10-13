@@ -50,8 +50,8 @@ struct ContentView: View {
         )
     }
 
-    /// Width of the visualizer slot on the right of the closed notch. 6 bars at the original
-    /// size (2pt wide, 2pt gap) need 24pt; the slot is otherwise the album-art square.
+    /// Width of the visualizer slot on the right of the closed notch. 6 bars (2pt wide, 2pt gap)
+    /// need 22pt; the slot is otherwise the album-art square, and the bars are as tall as the art.
     private var visualizerWidth: CGFloat {
         let square = max(0, vm.effectiveClosedNotchHeight - 12)
         return useMusicVisualizer ? max(square, 24) : square
@@ -298,8 +298,8 @@ struct ContentView: View {
                         .frame(width: 50, alignment: .center)
                         .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                         .mask {
-                            AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                .frame(width: 24, height: 12)
+                            AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
+                                .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
                         }
                 } else {
                     LottieAnimationContainer()

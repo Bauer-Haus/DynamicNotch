@@ -4,9 +4,10 @@
 //
 //  Created by Harsh Vardhan  Goswami  on 02/08/24.
 //
-//  The 6 bars follow the real audio of Apple Music / Spotify (via a Core Audio
-//  process tap + FFT). If the tap is unavailable (permission denied, player not
-//  running, other source) the original random animation is used as a fallback.
+//  The bars follow the real audio of the now-playing app (via a Core Audio
+//  process tap + FFT). If that app's audio can't be found the tap listens to all
+//  system output instead. If no audio arrives at all (permission denied, macOS
+//  older than 14.2) the original random animation is used as a fallback.
 //
 import Accelerate
 import AppKit
@@ -17,13 +18,15 @@ import SwiftUI
 
 // MARK: - Live audio levels
 
-/// Taps the output audio of the music apps and publishes 4 smoothed band levels (0...1).
+/// Taps the output audio of the now-playing app and publishes smoothed band levels (0...1).
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
     static let bandCount = 6
-    /// Bundle id prefixes of the apps whose output is analysed.
-    private static let bundlePrefixes = ["com.apple.Music", "com.spotify.client"]
+    /// Band edges in Hz (bandCount + 1 values), log-spaced from bass to treble.
+    private static let bandEdges: [Float] = [60, 150, 350, 800, 1800, 4000, 10000]
+    /// Levels are shown over this many dB below the loudest recent band.
+    private static let dynamicRange: Float = 36
 
     private let fftSize = 1024
     private let log2n: vDSP_Length = 10
@@ -36,21 +39,28 @@ final class AudioLevelMonitor {
     private var window: [Float] = []
     private var ring: [Float] = []
     private var sampleRate: Double = 48000
-    private var bandPeaks = [Float](repeating: 0.001, count: bandCount)
-    private var smoothed = [Float](repeating: 0, count: bandCount)
+    private var referenceDB: Float = -40
+    private var startedAt: CFAbsoluteTime = 0
+
+    // Touched only on `queue`.
+    private var users = 0
+    private var targetBundleID: String?
+    private var tappedBundleID: String?
+    private var isRunning = false
 
     private let lock = NSLock()
     private var _levels = [Float](repeating: 0, count: bandCount)
-    private var _lastUpdate: CFAbsoluteTime = 0
-    private(set) var isRunning = false
+    private var _lastCallback: CFAbsoluteTime = 0
+    private var _heardSignal = false
 
-    /// Latest band levels, plus whether they are fresh (audio actually flowing).
+    /// Latest band levels, plus whether they are real (tap delivering actual audio).
     func snapshot() -> (levels: [Float], isLive: Bool) {
         lock.lock(); defer { lock.unlock() }
-        return (_levels, CFAbsoluteTimeGetCurrent() - _lastUpdate < 0.5)
+        // A denied permission still delivers buffers, but they are all zeros. Until any
+        // non-silent audio has arrived, report not-live so the view keeps animating.
+        let fresh = CFAbsoluteTimeGetCurrent() - _lastCallback < 0.5
+        return (_levels, fresh && _heardSignal)
     }
-
-    private var users = 0 // touched only on `queue`
 
     /// A view wants live levels. Balanced with `release()`.
     func retain() {
@@ -65,14 +75,35 @@ final class AudioLevelMonitor {
         queue.async { [weak self] in
             guard let self else { return }
             self.users = max(0, self.users - 1)
-            if self.users == 0 { self.stopLocked() }
+            if self.users == 0 { self.teardown() }
         }
     }
 
-    /// Retry attaching (e.g. the player launched after we started). No-op if already running.
+    /// The app whose audio should drive the bars (MusicManager's now-playing bundle id).
+    func setTarget(bundleID: String?) {
+        queue.async { [weak self] in
+            guard let self, self.targetBundleID != bundleID else { return }
+            self.targetBundleID = bundleID
+            if self.users > 0 {
+                self.teardown()
+                self.startLocked()
+            }
+        }
+    }
+
+    /// Re-attach if the tap is missing or stalled (player relaunched, device changed),
+    /// or if the target app has started producing audio since we fell back to all output.
     func ensureRunning() {
         queue.async { [weak self] in
             guard let self, self.users > 0 else { return }
+            let now = CFAbsoluteTimeGetCurrent()
+            self.lock.lock()
+            let lastCallback = self._lastCallback
+            self.lock.unlock()
+            let stalled = self.isRunning && now - max(lastCallback, self.startedAt) > 2
+            let betterTarget = self.isRunning && self.tappedBundleID == nil && self.targetBundleID != nil
+                && !Self.processObjects(forBundleID: self.targetBundleID!).isEmpty
+            if stalled || betterTarget { self.teardown() }
             self.startLocked()
         }
     }
@@ -80,14 +111,20 @@ final class AudioLevelMonitor {
     // MARK: Setup
 
     private func startLocked() {
-        guard !isRunning else { return }
+        guard !isRunning, users > 0 else { return }
         // Process taps need macOS 14.2+; older systems keep the random animation.
         guard #available(macOS 14.2, *) else { return }
 
-        let processes = Self.processObjects(matching: Self.bundlePrefixes)
-        guard !processes.isEmpty else { return } // player not running; caller falls back
-
-        let desc = CATapDescription(stereoMixdownOfProcesses: processes)
+        // Prefer the now-playing app; otherwise listen to everything we output except ourselves.
+        let processes = targetBundleID.map { Self.processObjects(forBundleID: $0) } ?? []
+        let desc: CATapDescription
+        if processes.isEmpty {
+            desc = CATapDescription(stereoGlobalTapButExcludeProcesses: Self.ownProcessObject().map { [$0] } ?? [])
+            tappedBundleID = nil
+        } else {
+            desc = CATapDescription(stereoMixdownOfProcesses: processes)
+            tappedBundleID = targetBundleID
+        }
         desc.uuid = UUID()
         desc.muteBehavior = .unmuted
         desc.isPrivate = true
@@ -96,7 +133,6 @@ final class AudioLevelMonitor {
         guard AudioHardwareCreateProcessTap(desc, &tap) == noErr else { return }
         tapID = tap
 
-        // Read the tap's stream format to get the sample rate.
         var format = AudioStreamBasicDescription()
         var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
         var addr = AudioObjectPropertyAddress(
@@ -107,16 +143,23 @@ final class AudioLevelMonitor {
             sampleRate = format.mSampleRate
         }
 
-        let aggregate: [String: Any] = [
+        // The aggregate is clocked by the real output device, with the tap as its input.
+        var aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "boringNotch-visualizer",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceIsPrivateKey: true,
+            kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
             kAudioAggregateDeviceTapListKey: [[
                 kAudioSubTapUIDKey: desc.uuid.uuidString,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
         ]
+        if let outputUID = Self.defaultOutputDeviceUID() {
+            aggregate[kAudioAggregateDeviceMainSubDeviceKey] = outputUID
+            aggregate[kAudioAggregateDeviceSubDeviceListKey] = [[kAudioSubDeviceUIDKey: outputUID]]
+        }
+
         var agg = AudioObjectID(kAudioObjectUnknown)
         guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &agg) == noErr else {
             teardown()
@@ -128,6 +171,7 @@ final class AudioLevelMonitor {
         window = [Float](repeating: 0, count: fftSize)
         vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
         ring.removeAll(keepingCapacity: true)
+        referenceDB = -40
 
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, agg, queue) { [weak self] _, inData, _, _, _ in
@@ -143,12 +187,8 @@ final class AudioLevelMonitor {
             teardown()
             return
         }
+        startedAt = CFAbsoluteTimeGetCurrent()
         isRunning = true
-    }
-
-    private func stopLocked() {
-        guard isRunning || tapID != kAudioObjectUnknown else { return }
-        teardown()
     }
 
     private func teardown() {
@@ -167,11 +207,12 @@ final class AudioLevelMonitor {
         ioProcID = nil
         aggregateID = AudioObjectID(kAudioObjectUnknown)
         tapID = AudioObjectID(kAudioObjectUnknown)
+        tappedBundleID = nil
         isRunning = false
-        smoothed = [Float](repeating: 0, count: Self.bandCount)
         lock.lock()
-        _levels = smoothed
-        _lastUpdate = 0
+        _levels = [Float](repeating: 0, count: Self.bandCount)
+        _lastCallback = 0
+        _heardSignal = false
         lock.unlock()
     }
 
@@ -182,6 +223,7 @@ final class AudioLevelMonitor {
         guard let first = buffers.first, let base = first.mData?.assumingMemoryBound(to: Float.self) else { return }
 
         // Mono-mix whatever layout we got (interleaved or one buffer per channel).
+        var peak: Float = 0
         if buffers.count > 1 {
             let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size
             for f in 0 ..< frames {
@@ -190,7 +232,9 @@ final class AudioLevelMonitor {
                 for b in buffers {
                     if let p = b.mData?.assumingMemoryBound(to: Float.self) { sum += p[f]; n += 1 }
                 }
-                ring.append(n > 0 ? sum / n : 0)
+                let v = n > 0 ? sum / n : 0
+                peak = max(peak, abs(v))
+                ring.append(v)
             }
         } else {
             let channels = max(1, Int(first.mNumberChannels))
@@ -198,9 +242,16 @@ final class AudioLevelMonitor {
             for f in 0 ..< frames {
                 var sum: Float = 0
                 for c in 0 ..< channels { sum += base[f * channels + c] }
-                ring.append(sum / Float(channels))
+                let v = sum / Float(channels)
+                peak = max(peak, abs(v))
+                ring.append(v)
             }
         }
+
+        lock.lock()
+        _lastCallback = CFAbsoluteTimeGetCurrent()
+        if peak > 1e-6 { _heardSignal = true }
+        lock.unlock()
 
         while ring.count >= fftSize {
             analyse(Array(ring.prefix(fftSize)))
@@ -231,40 +282,43 @@ final class AudioLevelMonitor {
             }
         }
 
-        // Band edges in Hz (bandCount + 1 values), roughly log-spaced from bass to treble.
-        let edges: [Float] = [40, 150, 400, 1000, 2500, 6000, 14000]
+        let edges = Self.bandEdges
         let binHz = Float(sampleRate) / Float(fftSize)
 
-        var bands = [Float](repeating: 0, count: Self.bandCount)
+        // Band loudness in dB. Music has much more energy in the bass, so tilt the
+        // spectrum (+3 dB/octave around 1 kHz) to let the treble bars move too.
+        var bandDB = [Float](repeating: -120, count: Self.bandCount)
         for b in 0 ..< Self.bandCount {
             let lo = max(1, Int(edges[b] / binHz))
             let hi = min(half - 1, max(lo + 1, Int(edges[b + 1] / binHz)))
             var mean: Float = 0
-            vDSP_meanv(Array(power[lo ... hi]), 1, &mean, vDSP_Length(hi - lo + 1))
-            bands[b] = sqrt(mean) // amplitude
+            power.withUnsafeBufferPointer { p in
+                vDSP_meanv(p.baseAddress! + lo, 1, &mean, vDSP_Length(hi - lo + 1))
+            }
+            let center = sqrtf(edges[b] * edges[b + 1])
+            let tilt = 10 * log10f(center / 1000)
+            bandDB[b] = 10 * log10f(mean + 1e-12) + tilt
         }
 
-        // Per-band adaptive normalisation so the bars use their full range at any volume.
+        // One shared reference for all bars (not per bar), so their relative heights stay
+        // true to the music. It jumps up to new peaks and relaxes slowly when it gets quieter.
+        let loudest = bandDB.max() ?? -120
+        referenceDB = loudest > referenceDB ? loudest : max(loudest, referenceDB - 0.05)
+
         var out = [Float](repeating: 0, count: Self.bandCount)
         for b in 0 ..< Self.bandCount {
-            bandPeaks[b] = max(bandPeaks[b] * 0.995, bands[b], 0.001)
-            let norm = min(1, bands[b] / bandPeaks[b])
-            let shaped = powf(norm, 0.8)
-            // Fast attack, slower release.
-            let coeff: Float = shaped > smoothed[b] ? 0.6 : 0.15
-            smoothed[b] += (shaped - smoothed[b]) * coeff
-            out[b] = smoothed[b]
+            out[b] = max(0, min(1, (bandDB[b] - (referenceDB - Self.dynamicRange)) / Self.dynamicRange))
         }
 
         lock.lock()
         _levels = out
-        _lastUpdate = CFAbsoluteTimeGetCurrent()
         lock.unlock()
     }
 
-    // MARK: Process lookup
+    // MARK: Process / device lookup
 
-    private static func processObjects(matching prefixes: [String]) -> [AudioObjectID] {
+    /// Audio process objects for an app, including its helpers (e.g. com.spotify.client.helper).
+    private static func processObjects(forBundleID target: String) -> [AudioObjectID] {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyProcessObjectList,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -277,31 +331,73 @@ final class AudioLevelMonitor {
         else { return [] }
 
         return ids.filter { id in
-            var bidAddr = AudioObjectPropertyAddress(
-                mSelector: kAudioProcessPropertyBundleID,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain)
-            var cf: Unmanaged<CFString>?
-            var s = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
-            guard AudioObjectGetPropertyData(id, &bidAddr, 0, nil, &s, &cf) == noErr,
-                  let bundleID = cf?.takeRetainedValue() as String? else { return false }
-            return prefixes.contains { bundleID.hasPrefix($0) }
+            guard let bundleID = stringProperty(id, kAudioProcessPropertyBundleID) else { return false }
+            return bundleID == target || bundleID.hasPrefix(target + ".")
         }
+    }
+
+    private static func ownProcessObject() -> AudioObjectID? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var pid = getpid()
+        var object = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &addr,
+            UInt32(MemoryLayout<pid_t>.size), &pid, &size, &object)
+        return status == noErr && object != kAudioObjectUnknown ? object : nil
+    }
+
+    private static func defaultOutputDeviceUID() -> String? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultSystemOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr
+        else { return nil }
+        return stringProperty(device, kAudioDevicePropertyDeviceUID)
+    }
+
+    private static func stringProperty(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var value: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(object, &addr, 0, nil, &size, &value) == noErr else { return nil }
+        return value?.takeRetainedValue() as String?
     }
 }
 
 // MARK: - Bars view
 
 class AudioSpectrum: NSView {
-    private var barLayers: [CAShapeLayer] = []
-    private var barScales: [CGFloat] = []
-    private var isPlaying: Bool = true
+    private var barLayers: [CALayer] = []
+    /// Displayed height of each bar as a fraction of the view height.
+    private var heights: [CGFloat] = []
+    private var targets: [CGFloat] = []
+    private var isPlaying: Bool = false
     private var animationTimer: Timer?
-    private var lastLiveTick: CFAbsoluteTime = 0
+    private var lastRandomTick: CFAbsoluteTime = 0
+    private var lastRetry: CFAbsoluteTime = 0
+    private var holdsMonitor = false
 
-    private let minScale: CGFloat = 0.35
-    private let fallbackInterval: TimeInterval = 0.3
-    private let liveInterval: TimeInterval = 1.0 / 30.0
+    private let barWidth: CGFloat = 2
+    private let barSpacing: CGFloat = 2
+    private let minHeight: CGFloat = 0.3
+    private let randomInterval: TimeInterval = 0.3
+    private let frameInterval: TimeInterval = 1.0 / 60.0
+
+    var bundleID: String? {
+        didSet {
+            if bundleID != oldValue { AudioLevelMonitor.shared.setTarget(bundleID: bundleID) }
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -315,41 +411,50 @@ class AudioSpectrum: NSView {
         setupBars()
     }
 
-    private var holdsMonitor = false
-
     deinit {
         animationTimer?.invalidate()
         if holdsMonitor { AudioLevelMonitor.shared.release() }
     }
 
-    private func setupBars() {
-        // Original bar size (2pt wide, 2pt gap). With 6 bars the view is 24pt wide;
-        // ContentView widens the notch and the mask to match (see `visualizerWidth`).
-        let barWidth: CGFloat = 2
-        let barCount = AudioLevelMonitor.bandCount
-        let spacing: CGFloat = barWidth
-        let totalWidth = CGFloat(barCount) * (barWidth + spacing)
-        let totalHeight: CGFloat = 14
-        frame.size = CGSize(width: totalWidth, height: totalHeight)
+    override var intrinsicContentSize: NSSize {
+        let count = CGFloat(AudioLevelMonitor.bandCount)
+        return NSSize(width: count * barWidth + (count - 1) * barSpacing, height: NSView.noIntrinsicMetric)
+    }
 
-        for i in 0 ..< barCount {
-            let xPosition = CGFloat(i) * (barWidth + spacing)
-            let barLayer = CAShapeLayer()
-            barLayer.frame = CGRect(x: xPosition, y: 0, width: barWidth, height: totalHeight)
-            barLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            barLayer.position = CGPoint(x: xPosition + barWidth / 2, y: totalHeight / 2)
-            barLayer.fillColor = NSColor.white.cgColor
-            barLayer.backgroundColor = NSColor.white.cgColor
-            barLayer.allowsGroupOpacity = false
-            barLayer.masksToBounds = true
-            let path = NSBezierPath(roundedRect: CGRect(x: 0, y: 0, width: barWidth, height: totalHeight),
-                                    xRadius: barWidth / 2,
-                                    yRadius: barWidth / 2)
-            barLayer.path = path.cgPath
-            barLayers.append(barLayer)
-            barScales.append(minScale)
-            layer?.addSublayer(barLayer)
+    private func setupBars() {
+        for _ in 0 ..< AudioLevelMonitor.bandCount {
+            let bar = CALayer()
+            bar.backgroundColor = NSColor.white.cgColor
+            bar.cornerRadius = barWidth / 2
+            barLayers.append(bar)
+            heights.append(minHeight)
+            targets.append(minHeight)
+            layer?.addSublayer(bar)
         }
+    }
+
+    override func layout() {
+        super.layout()
+        applyHeights()
+    }
+
+    /// Bars are centred in the view and grow up and down from the middle, keeping
+    /// their rounded ends (bounds change, not a scale transform).
+    private func applyHeights() {
+        let count = CGFloat(barLayers.count)
+        let totalWidth = count * barWidth + (count - 1) * barSpacing
+        let originX = (bounds.width - totalWidth) / 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (i, bar) in barLayers.enumerated() {
+            let h = max(barWidth, bounds.height * heights[i])
+            bar.frame = CGRect(
+                x: originX + CGFloat(i) * (barWidth + barSpacing),
+                y: (bounds.height - h) / 2,
+                width: barWidth,
+                height: h)
+        }
+        CATransaction.commit()
     }
 
     private func startAnimating() {
@@ -358,10 +463,11 @@ class AudioSpectrum: NSView {
             holdsMonitor = true
             AudioLevelMonitor.shared.retain()
         }
-        // One 30 Hz timer; it drives live levels, or falls back to the random animation.
-        animationTimer = Timer.scheduledTimer(withTimeInterval: liveInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: frameInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
     }
 
     private func stopAnimating() {
@@ -371,64 +477,45 @@ class AudioSpectrum: NSView {
             holdsMonitor = false
             AudioLevelMonitor.shared.release()
         }
-        resetBars()
+        for i in heights.indices {
+            heights[i] = minHeight
+            targets[i] = minHeight
+        }
+        applyHeights()
     }
 
     private func tick() {
+        let now = CFAbsoluteTimeGetCurrent()
         let (levels, isLive) = AudioLevelMonitor.shared.snapshot()
+
         if isLive {
-            applyLive(levels)
-        } else {
-            // Not tapped (permission denied / other player / no audio yet): old behaviour.
-            let now = CFAbsoluteTimeGetCurrent()
-            guard now - lastLiveTick >= fallbackInterval else { return }
-            lastLiveTick = now
-            updateBarsRandom()
-            // If the player started after we did, try to attach again.
-            AudioLevelMonitor.shared.ensureRunning()
-        }
-    }
-
-    private func applyLive(_ levels: [Float]) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for (i, barLayer) in barLayers.enumerated() where i < levels.count {
-            barLayer.removeAnimation(forKey: "scaleY")
-            let scale = minScale + (1 - minScale) * CGFloat(max(0, min(1, levels[i])))
-            barScales[i] = scale
-            barLayer.transform = CATransform3DMakeScale(1, scale, 1)
-        }
-        CATransaction.commit()
-    }
-
-    private func updateBarsRandom() {
-        for (i, barLayer) in barLayers.enumerated() {
-            let currentScale = barScales[i]
-            let targetScale = CGFloat.random(in: minScale ... 1.0)
-            barScales[i] = targetScale
-            let animation = CABasicAnimation(keyPath: "transform.scale.y")
-            animation.fromValue = currentScale
-            animation.toValue = targetScale
-            animation.duration = fallbackInterval
-            animation.autoreverses = true
-            animation.fillMode = .forwards
-            animation.isRemovedOnCompletion = false
-            if #available(macOS 13.0, *) {
-                animation.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 24, preferred: 24)
+            for i in targets.indices where i < levels.count {
+                targets[i] = minHeight + (1 - minHeight) * CGFloat(levels[i])
             }
-            barLayer.add(animation, forKey: "scaleY")
+        } else {
+            // No real audio (yet): the original random animation.
+            if now - lastRandomTick >= randomInterval {
+                lastRandomTick = now
+                for i in targets.indices { targets[i] = .random(in: minHeight ... 1) }
+            }
+            if now - lastRetry >= 1 {
+                lastRetry = now
+                AudioLevelMonitor.shared.ensureRunning()
+            }
         }
-    }
 
-    private func resetBars() {
-        for (i, barLayer) in barLayers.enumerated() {
-            barLayer.removeAllAnimations()
-            barLayer.transform = CATransform3DMakeScale(1, minScale, 1)
-            barScales[i] = minScale
+        // Fast rise, slower fall, like a level meter.
+        let rise: CGFloat = isLive ? 0.55 : 0.2
+        let fall: CGFloat = isLive ? 0.18 : 0.2
+        for i in heights.indices {
+            let k = targets[i] > heights[i] ? rise : fall
+            heights[i] += (targets[i] - heights[i]) * k
         }
+        applyHeights()
     }
 
     func setPlaying(_ playing: Bool) {
+        guard playing != isPlaying else { return }
         isPlaying = playing
         if isPlaying {
             startAnimating()
@@ -440,20 +527,23 @@ class AudioSpectrum: NSView {
 
 struct AudioSpectrumView: NSViewRepresentable {
     @Binding var isPlaying: Bool
+    var bundleID: String? = nil
 
     func makeNSView(context: Context) -> AudioSpectrum {
         let spectrum = AudioSpectrum()
+        spectrum.bundleID = bundleID
         spectrum.setPlaying(isPlaying)
         return spectrum
     }
 
     func updateNSView(_ nsView: AudioSpectrum, context: Context) {
+        nsView.bundleID = bundleID
         nsView.setPlaying(isPlaying)
     }
 }
 
 #Preview {
     AudioSpectrumView(isPlaying: .constant(true))
-        .frame(width: 16, height: 20)
+        .frame(width: 22, height: 20)
         .padding()
 }

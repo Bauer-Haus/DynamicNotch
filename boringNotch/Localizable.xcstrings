@@ -602,6 +602,7 @@
       }
     },
     "%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -702,6 +703,7 @@
       }
     },
     "%d%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -902,6 +904,7 @@
       }
     },
     "%lld%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1002,6 +1005,7 @@
       }
     },
     "• Bug fixes" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1102,6 +1106,7 @@
       }
     },
     "• Improved performance" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1202,6 +1207,7 @@
       }
     },
     "• New feature 1" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1502,6 +1508,7 @@
       }
     },
     "Access Denied" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1602,6 +1609,7 @@
       }
     },
     "Accessibility access is required to replace the system HUD." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2003,6 +2011,7 @@
       }
     },
     "Additional features" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2203,6 +2212,7 @@
       }
     },
     "All-day" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2303,6 +2313,7 @@
       }
     },
     "Allow Access" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2403,6 +2414,7 @@
       }
     },
     "Always show full event titles" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2503,6 +2515,7 @@
       }
     },
     "Always show tabs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2803,6 +2816,7 @@
       }
     },
     "Auto-scroll to next event" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3203,6 +3217,7 @@
       }
     },
     "Battery" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3303,6 +3318,7 @@
       }
     },
     "Battery Information" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3403,6 +3419,7 @@
       }
     },
     "Battery Settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3503,6 +3520,7 @@
       }
     },
     "Battery Status" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3603,6 +3621,7 @@
       }
     },
     "Boost your productivity with Clipboard Manager" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3903,6 +3922,7 @@
       }
     },
     "Calendar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4003,6 +4023,7 @@
       }
     },
     "Calendar access is denied. Please enable it in System Settings." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4103,6 +4124,7 @@
       }
     },
     "Calendars" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4403,6 +4425,7 @@
       }
     },
     "Charging" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4503,6 +4526,7 @@
       }
     },
     "Charging on Hold: Desktop Mode" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5003,6 +5027,7 @@
       }
     },
     "Choose which service to use when sharing files from the shelf. Click the shelf button to select files, or drag files onto it to share immediately." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5103,6 +5128,7 @@
       }
     },
     "Circle" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5303,6 +5329,7 @@
       }
     },
     "Close" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5503,6 +5530,7 @@
       }
     },
     "Closed Notch" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5803,6 +5831,7 @@
       }
     },
     "Coming soon" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6003,6 +6032,7 @@
       }
     },
     "Copy items on drag" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6203,6 +6233,7 @@
       }
     },
     "Currently selected: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7406,6 +7437,7 @@
       }
     },
     "Download" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7807,6 +7839,7 @@
       }
     },
     "Drop files here" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7907,6 +7940,7 @@
       }
     },
     "Easily copy, store, and manage your most-used content. Upgrade now for advanced features like multi-item storage and quick access!" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8007,6 +8041,7 @@
       }
     },
     "Edit layout" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8207,6 +8242,7 @@
       }
     },
     "Enable boring mirror" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8508,6 +8544,7 @@
       }
     },
     "Enable glowing effect" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8708,6 +8745,7 @@
       }
     },
     "Enable shelf" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8908,6 +8946,7 @@
       }
     },
     "Enhance your experience with HUDs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9008,6 +9047,7 @@
       }
     },
     "Enjoy your free time!" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9108,6 +9148,7 @@
       }
     },
     "Expanded drag detection area" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9409,6 +9450,7 @@
       }
     },
     "Files dropped on the shelf will be shared via this service" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10209,6 +10251,7 @@
       }
     },
     "Got it!" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10309,6 +10352,7 @@
       }
     },
     "Gradient" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10409,6 +10453,7 @@
       }
     },
     "Hide all-day events" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10509,6 +10554,7 @@
       }
     },
     "Hide completed reminders" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11009,6 +11055,7 @@
       }
     },
     "Hierarchical" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11409,6 +11456,7 @@
       }
     },
     "HUD style" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11509,6 +11557,7 @@
       }
     },
     "HUDs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11609,6 +11658,7 @@
       }
     },
     "In progress" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11709,6 +11759,7 @@
       }
     },
     "Inline" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12210,6 +12261,7 @@
       }
     },
     "Low Power Mode" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12410,6 +12462,7 @@
       }
     },
     "Mark as complete" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12510,6 +12563,7 @@
       }
     },
     "Mark as incomplete" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12910,6 +12964,7 @@
       }
     },
     "Max Capacity: %lld%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13610,6 +13665,7 @@
       }
     },
     "Mic %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13710,6 +13766,7 @@
       }
     },
     "Mirror" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13810,6 +13867,7 @@
       }
     },
     "Mirror shape" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13910,6 +13968,7 @@
       }
     },
     "More" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14110,6 +14169,7 @@
       }
     },
     "muted" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14210,6 +14270,7 @@
       }
     },
     "Muted" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14710,6 +14771,7 @@
       }
     },
     "No events" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14810,6 +14872,7 @@
       }
     },
     "No events today" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15011,6 +15074,7 @@
       }
     },
     "Not Now" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15511,6 +15575,7 @@
       }
     },
     "Open Calendar Settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15611,6 +15676,7 @@
       }
     },
     "Open Notch" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15811,6 +15877,7 @@
       }
     },
     "Open Reminder Settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15911,6 +15978,7 @@
       }
     },
     "Open shelf by default if items are present" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16011,6 +16079,7 @@
       }
     },
     "Option key behaviour" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16211,6 +16280,7 @@
       }
     },
     "Plugged In" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16411,6 +16481,7 @@
       }
     },
     "Progress bar style" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16511,6 +16582,7 @@
       }
     },
     "Quick Share" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16611,6 +16683,7 @@
       }
     },
     "Quick Share Service" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17011,6 +17084,7 @@
       }
     },
     "Remember last tab" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17111,6 +17185,7 @@
       }
     },
     "Reminder access is denied. Please enable it in System Settings." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17211,6 +17286,7 @@
       }
     },
     "Reminders" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17311,6 +17387,7 @@
       }
     },
     "Remove from shelf after dragging" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17411,6 +17488,7 @@
       }
     },
     "Replace system HUD" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17511,6 +17589,7 @@
       }
     },
     "Replaces the standard macOS volume, display brightness, and keyboard brightness HUDs with a custom design." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17611,6 +17690,7 @@
       }
     },
     "Request Accessibility" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18513,6 +18593,7 @@
       }
     },
     "Shelf" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18613,6 +18694,7 @@
       }
     },
     "Shortcuts" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18713,6 +18795,7 @@
       }
     },
     "Show battery indicator" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18813,6 +18896,7 @@
       }
     },
     "Show battery percentage" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18913,6 +18997,7 @@
       }
     },
     "Show calendar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19013,6 +19098,7 @@
       }
     },
     "Show cool face animation while inactive" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19113,6 +19199,7 @@
       }
     },
     "Show HUD in open notch" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19713,6 +19800,7 @@
       }
     },
     "Show percentage" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19813,6 +19901,7 @@
       }
     },
     "Show power status icons" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19913,6 +20002,7 @@
       }
     },
     "Show power status notifications" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20313,6 +20403,7 @@
       }
     },
     "Sneak Peek shows the media title and artist under the notch for a few seconds." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20713,6 +20804,7 @@
       }
     },
     "Square" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21215,6 +21307,7 @@
       }
     },
     "Time to Full Charge: %lld min" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21315,6 +21408,7 @@
       }
     },
     "Tint progress bar with accent color" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21415,6 +21509,7 @@
       }
     },
     "Toggle Notch Open:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21515,6 +21610,7 @@
       }
     },
     "Toggle Sneak Peek:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21816,6 +21912,7 @@
       }
     },
     "Unlock advanced features and improve your experience. Upgrade now for more customizations!" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21916,6 +22013,7 @@
       }
     },
     "unmuted" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22016,6 +22114,7 @@
       }
     },
     "Unmuted" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22116,6 +22215,7 @@
       }
     },
     "Upgrade to Pro" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22916,6 +23016,7 @@
       }
     },
     "What's New" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
