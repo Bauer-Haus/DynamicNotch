@@ -241,6 +241,7 @@ struct ContentView: View {
         HStack {
             Image(nsImage: musicManager.albumArt)
                 .resizable()
+                .brightness(musicManager.albumArtLift)
                 .clipped()
                 .clipShape(
                     RoundedRectangle(

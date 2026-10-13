@@ -22,10 +22,14 @@ extension NSImage {
     /// album art shrunk, heavily blurred, a little less saturated and darker, so each bar takes the
     /// colours of the part of the art behind it (measured: hue kept, saturation ~0.75x, brightness ~0.85x).
     /// Made once per track off the main thread; the bars only mask it.
-    func visualizerBackdrop(completion: @escaping (NSImage?) -> Void) {
+    ///
+    /// Dark colours are lifted to `minimumBarBrightness` so bars never vanish into the black
+    /// notch (a black cover gives light grey bars on the iPhone). Also reports the backdrop's
+    /// average luminance, which decides how much a dark cover itself is lifted.
+    func visualizerBackdrop(completion: @escaping (NSImage?, CGFloat) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                DispatchQueue.main.async { completion(nil) }
+                DispatchQueue.main.async { completion(nil, 0) }
                 return
             }
             let side: CGFloat = 32
@@ -52,15 +56,72 @@ extension NSImage {
             exposure.ev = -0.5  // in linear light; about 0.85x on screen
 
             let rect = CGRect(x: 0, y: 0, width: side, height: side)
+            let width = Int(side), height = Int(side)
+            var pixels = [UInt8](repeating: 0, count: width * height * 4)
+            let space = CGColorSpaceCreateDeviceRGB()
+            let info = CGImageAlphaInfo.premultipliedLast.rawValue
             guard let output = exposure.outputImage?.cropped(to: rect),
-                  let result = Self.ciContext.createCGImage(output, from: rect)
+                  let blurred = Self.ciContext.createCGImage(output, from: rect),
+                  let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
+                                          bytesPerRow: width * 4, space: space, bitmapInfo: info)
             else {
-                DispatchQueue.main.async { completion(nil) }
+                DispatchQueue.main.async { completion(nil, 0) }
                 return
             }
-            let image = NSImage(cgImage: result, size: NSSize(width: side, height: side))
-            DispatchQueue.main.async { completion(image) }
+            context.draw(blurred, in: rect)
+            let luminance = Self.averageLuminance(rgba: pixels)
+            Self.liftToMinimumBrightness(rgba: &pixels, minimum: Self.minimumBarBrightness)
+
+            guard let lifted = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
+                                         bytesPerRow: width * 4, space: space, bitmapInfo: info)?.makeImage()
+            else {
+                DispatchQueue.main.async { completion(nil, 0) }
+                return
+            }
+            let image = NSImage(cgImage: lifted, size: NSSize(width: side, height: side))
+            DispatchQueue.main.async { completion(image, luminance) }
         }
+    }
+
+    /// The iPhone never lets a bar go darker than this (~40%): a black cover gives bars of
+    /// about (99, 100, 106).
+    static let minimumBarBrightness: UInt8 = 102
+
+    /// Raises any pixel whose brightest channel is below `minimum` by adding the same amount
+    /// to every channel. Near-black stays a neutral grey (scaling would turn tiny colour
+    /// differences into strong tints); colourful pixels above the floor are untouched.
+    static func liftToMinimumBrightness(rgba pixels: inout [UInt8], minimum: UInt8) {
+        var i = 0
+        while i + 3 < pixels.count {
+            let brightest = max(pixels[i], pixels[i + 1], pixels[i + 2])
+            if brightest < minimum {
+                let add = minimum - brightest
+                pixels[i] += add
+                pixels[i + 1] += add
+                pixels[i + 2] += add
+            }
+            i += 4
+        }
+    }
+
+    /// Mean Rec. 709 luminance of RGBA pixels, 0...1.
+    static func averageLuminance(rgba pixels: [UInt8]) -> CGFloat {
+        let count = pixels.count / 4
+        guard count > 0 else { return 0 }
+        var total: Double = 0
+        var i = 0
+        while i + 3 < pixels.count {
+            total += 0.2126 * Double(pixels[i]) + 0.7152 * Double(pixels[i + 1]) + 0.0722 * Double(pixels[i + 2])
+            i += 4
+        }
+        return CGFloat(total / Double(count) / 255)
+    }
+
+    /// How much to brighten a cover so a dark one doesn't disappear into the black notch:
+    /// pure black is drawn as dark grey (~0.1, like the iPhone's ~28/255), fading to no
+    /// change for covers of normal brightness.
+    static func darkArtLift(averageLuminance: CGFloat) -> CGFloat {
+        max(0, 0.1 - 0.5 * averageLuminance)
     }
 
     /// Decodes image data straight to a copy no larger than `maxPixelSize` on its longest

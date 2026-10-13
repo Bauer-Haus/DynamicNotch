@@ -39,6 +39,8 @@ class MusicManager: ObservableObject {
     @Published var avgColor: NSColor = .white
     /// Blurred album art the visualizer bars show through (nil until the first art loads).
     @Published var visualizerBackdrop: NSImage?
+    /// Brightness added to the album art so very dark covers stay visible (0 for most).
+    @Published var albumArtLift: CGFloat = 0
     @Published var bundleIdentifier: String? = nil
     @Published var songDuration: TimeInterval = 0
     @Published var elapsedTime: TimeInterval = 0
@@ -582,9 +584,12 @@ class MusicManager: ObservableObject {
                 self.calculateAverageColor()
             }
         }
-        newAlbumArt.visualizerBackdrop { [weak self] image in
+        newAlbumArt.visualizerBackdrop { [weak self] image, luminance in
             guard let self, self.albumArt === newAlbumArt else { return }
-            withAnimation(.smooth) { self.visualizerBackdrop = image }
+            withAnimation(.smooth) {
+                self.visualizerBackdrop = image
+                self.albumArtLift = NSImage.darkArtLift(averageLuminance: luminance)
+            }
         }
     }
 
