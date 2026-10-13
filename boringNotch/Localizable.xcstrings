@@ -2917,6 +2917,7 @@
       }
     },
     "Automatically check for updates" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3017,6 +3018,7 @@
       }
     },
     "Automatically download updates" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4627,6 +4629,7 @@
       }
     },
     "Check for Updates…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12261,7 +12264,11 @@
         }
       }
     },
+    "Made by BauerHaus · based on boring.notch (GPL-3.0)" : {
+
+    },
     "Made with 🫶🏻 by not so boring not.people" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20504,6 +20511,7 @@
       }
     },
     "Software updates" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

@@ -501,6 +501,9 @@ class AudioSpectrum: NSView {
     private var lastRetry: CFAbsoluteTime = 0
     private var lastTick: CFAbsoluteTime = 0
     private var holdsMonitor = false
+    /// When the bars started waiting for live audio, and whether any has arrived since.
+    private var waitingSince: CFAbsoluteTime = 0
+    private var heardLive = false
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
     // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
@@ -512,6 +515,10 @@ class AudioSpectrum: NSView {
     /// tuned at 60 Hz and scaled so it moves at the same speed at any frame rate.
     private static let maxStep: CGFloat = 0.105 * CGFloat(updateInterval * 60)
     private static let randomInterval: TimeInterval = 0.3
+    /// Starting the tap (and waking Bluetooth output) takes a moment, longest for the first
+    /// song of the day. Rest as dots meanwhile; only fall back to the random animation if no
+    /// audio has arrived by then (permission denied).
+    private static let randomFallbackDelay: TimeInterval = 3
     /// Smoothing time constants for live levels. Compared frame by frame with the iPhone
     /// Dynamic Island on a synthetic music track: even 40 ms scores 0.089 / corr 0.91 on
     /// held-back audio, near the best fit (80/50 ms, 0.085) with less delay (50 vs 83 ms).
@@ -647,6 +654,8 @@ class AudioSpectrum: NSView {
         }
         RunLoop.main.add(timer, forMode: .common)
         animationTimer = timer
+        waitingSince = CFAbsoluteTimeGetCurrent()
+        heardLive = false
     }
 
     private func stopAnimating() {
@@ -668,6 +677,7 @@ class AudioSpectrum: NSView {
         let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
+            heardLive = true
             // Exponential smoothing, the same up and down: bars glide like the iPhone's
             // instead of twitching between analyses (~50 ms to half height on a hit).
             let dt = min(0.1, max(0, now - lastTick))
@@ -682,8 +692,11 @@ class AudioSpectrum: NSView {
             applyLevels()
             return
         } else {
-            // No real audio (yet): the original random animation.
-            if now - lastRandomTick >= Self.randomInterval {
+            if heardLive || now - waitingSince < Self.randomFallbackDelay {
+                // Starting up, or a brief gap (track change, tap reconnecting): rest as dots.
+                for i in targets.indices { targets[i] = 0 }
+            } else if now - lastRandomTick >= Self.randomInterval {
+                // No audio at all (permission denied): the original random animation.
                 lastRandomTick = now
                 for i in targets.indices { targets[i] = .random(in: 0.2 ... 1) }
             }
