@@ -462,6 +462,7 @@ class AudioSpectrum: NSView {
     private var animationTimer: Timer?
     private var lastRandomTick: CFAbsoluteTime = 0
     private var lastRetry: CFAbsoluteTime = 0
+    private var lastTick: CFAbsoluteTime = 0
     private var holdsMonitor = false
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
@@ -473,6 +474,10 @@ class AudioSpectrum: NSView {
     /// Glide speed for the random fallback animation (fraction of range per update).
     private static let maxStep: CGFloat = 0.105
     private static let randomInterval: TimeInterval = 0.3
+    /// Smoothing time constants for live levels, fitted frame by frame to the iPhone
+    /// Dynamic Island playing a synthetic music track (corr 0.91 on held-back audio).
+    private static let riseTime: Double = 0.080
+    private static let fallTime: Double = 0.050
 
     var bundleID: String? {
         didSet {
@@ -599,10 +604,17 @@ class AudioSpectrum: NSView {
         let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
+            // Exponential smoothing with a slower rise than fall, as measured on the iPhone:
+            // bars ease up into hits and settle slightly faster (~83 ms to half height).
+            let dt = min(0.1, max(0, now - lastTick))
+            let rise = 1 - CGFloat(exp(-dt / Self.riseTime))
+            let fall = 1 - CGFloat(exp(-dt / Self.fallTime))
             for i in levels.indices where i < live.count {
-                levels[i] = CGFloat(live[i])
+                let target = CGFloat(live[i])
+                levels[i] += (target - levels[i]) * (target > levels[i] ? rise : fall)
                 targets[i] = levels[i]
             }
+            lastTick = now
             applyLevels()
             return
         } else {
