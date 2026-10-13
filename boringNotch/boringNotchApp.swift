@@ -198,6 +198,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Start tracking display sleep now, so it's known even if music starts while asleep.
+        _ = ScreenActivity.shared
 
         NotificationCenter.default.addObserver(
             self,

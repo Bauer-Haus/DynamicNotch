@@ -451,6 +451,39 @@ final class AudioLevelMonitor {
 
 // MARK: - Bars view
 
+/// Whether anyone can see the screens: false while the displays sleep or another user's
+/// session is in front. The notch window also shows on the lock screen, so window
+/// occlusion alone doesn't always report it hidden when the display turns off.
+@MainActor
+final class ScreenActivity {
+    static let shared = ScreenActivity()
+    static let didChange = Notification.Name("boringNotch.screenActivityChanged")
+
+    private(set) var isActive = true
+    private var screensAsleep = false { didSet { update() } }
+    private var sessionInactive = false { didSet { update() } }
+
+    private init() {
+        let center = NSWorkspace.shared.notificationCenter
+        let observe: (Notification.Name, @escaping @MainActor @Sendable (ScreenActivity) -> Void) -> Void = { name, change in
+            center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { change(ScreenActivity.shared) }
+            }
+        }
+        observe(NSWorkspace.screensDidSleepNotification) { $0.screensAsleep = true }
+        observe(NSWorkspace.screensDidWakeNotification) { $0.screensAsleep = false }
+        observe(NSWorkspace.sessionDidResignActiveNotification) { $0.sessionInactive = true }
+        observe(NSWorkspace.sessionDidBecomeActiveNotification) { $0.sessionInactive = false }
+    }
+
+    private func update() {
+        let active = !screensAsleep && !sessionInactive
+        guard active != isActive else { return }
+        isActive = active
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
+    }
+}
+
 class AudioSpectrum: NSView {
     private var barLayers: [CALayer] = []
     /// Level of each bar, 0 (a dot) ... 1 (full height).
@@ -500,14 +533,20 @@ class AudioSpectrum: NSView {
         animationTimer?.invalidate()
         if holdsMonitor { AudioLevelMonitor.shared.release() }
         if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
     }
 
     private var occlusionObserver: Any?
+    private var screenObserver: Any?
 
     /// Only animate (and keep the audio tap running) while the notch is actually on screen:
-    /// not while the display sleeps, the screen is locked or another space covers it.
+    /// not while the display sleeps, another user is logged in or another space covers it.
+    /// When the notch is open or hidden for full screen, SwiftUI removes this view from the
+    /// window, which stops it the same way.
     private var isVisible: Bool {
-        window?.occlusionState.contains(.visible) ?? false
+        guard let window, window.occlusionState.contains(.visible) else { return false }
+        return ScreenActivity.shared.isActive && !isHiddenOrHasHiddenAncestor
+            && bounds.width > 0 && bounds.height > 0
     }
 
     override func viewDidMoveToWindow() {
@@ -521,6 +560,23 @@ class AudioSpectrum: NSView {
                 MainActor.assumeIsolated { self?.updateRunning() }
             }
         }
+        if screenObserver == nil {
+            screenObserver = NotificationCenter.default.addObserver(
+                forName: ScreenActivity.didChange, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateRunning() }
+            }
+        }
+        updateRunning()
+    }
+
+    override func viewDidHide() {
+        super.viewDidHide()
+        updateRunning()
+    }
+
+    override func viewDidUnhide() {
+        super.viewDidUnhide()
         updateRunning()
     }
 
@@ -546,6 +602,8 @@ class AudioSpectrum: NSView {
     override func layout() {
         super.layout()
         applyLevels()
+        // Collapsing to zero size (notch shrinking away) stops it; growing back restarts it.
+        updateRunning()
     }
 
     /// Bars are centred and grow up and down from the middle, keeping their rounded
