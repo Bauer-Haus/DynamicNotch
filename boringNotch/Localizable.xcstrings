@@ -21610,7 +21610,11 @@
         }
       }
     },
+    "Two-finger swipe down on the notch to open it and up to close it. With horizontal gestures on, swipe left or right on the open notch to skip or go back a track." : {
+
+    },
     "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
