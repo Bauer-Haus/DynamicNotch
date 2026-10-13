@@ -28,6 +28,11 @@ struct ContentView: View {
     @Namespace var albumArtNamespace
 
     @Default(.useMusicVisualizer) var useMusicVisualizer
+    @Default(.enableGestures) var enableGestures
+    @Default(.closeGestureEnabled) var closeGestureEnabled
+    @Default(.mediaSwipeGestures) var mediaSwipeGestures
+    /// One track change per swipe, however far it goes.
+    @State private var mediaSwipeHandled = false
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
@@ -123,16 +128,25 @@ struct ContentView: View {
                     .onTapGesture {
                         doOpen()
                     }
-                    .conditionalModifier(Defaults[.enableGestures]) { view in
+                    .conditionalModifier(enableGestures) { view in
                         view
                             .panGesture(direction: .down) { translation, phase in
                                 handleDownGesture(translation: translation, phase: phase)
                             }
                     }
-                    .conditionalModifier(Defaults[.closeGestureEnabled] && Defaults[.enableGestures]) { view in
+                    .conditionalModifier(closeGestureEnabled && enableGestures) { view in
                         view
                             .panGesture(direction: .up) { translation, phase in
                                 handleUpGesture(translation: translation, phase: phase)
+                            }
+                    }
+                    .conditionalModifier(mediaSwipeGestures && enableGestures) { view in
+                        view
+                            .panGesture(direction: .left) { translation, phase in
+                                handleMediaSwipe(translation: translation, phase: phase, next: true)
+                            }
+                            .panGesture(direction: .right) { translation, phase in
+                                handleMediaSwipe(translation: translation, phase: phase, next: false)
                             }
                     }
                     .onChange(of: vm.notchState) { _, newState in
@@ -401,6 +415,26 @@ struct ContentView: View {
                 gestureProgress = .zero
             }
             doOpen()
+        }
+    }
+
+    /// Swipe left for the next track, right for the previous one, while the notch is open.
+    private func handleMediaSwipe(translation: CGFloat, phase: NSEvent.Phase, next: Bool) {
+        guard vm.notchState == .open else { return }
+        if phase == .ended {
+            mediaSwipeHandled = false
+            return
+        }
+        // Half the open/close distance: sideways swipes are shorter than vertical ones.
+        guard !mediaSwipeHandled, translation > Defaults[.gestureSensitivity] / 2 else { return }
+        mediaSwipeHandled = true
+        if next {
+            MusicManager.shared.nextTrack()
+        } else {
+            MusicManager.shared.previousTrack()
+        }
+        if Defaults[.enableHaptics] {
+            haptics.toggle()
         }
     }
 

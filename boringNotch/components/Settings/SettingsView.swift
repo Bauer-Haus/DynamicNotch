@@ -250,8 +250,9 @@ struct GeneralSettings: View {
             }
                 .disabled(!openNotchOnHover)
             if enableGestures {
-                Toggle("Change media with horizontal gestures", isOn: .constant(false))
-                    .disabled(true)
+                Defaults.Toggle(key: .mediaSwipeGestures) {
+                    Text("Change media with horizontal gestures")
+                }
                 Defaults.Toggle(key: .closeGestureEnabled) {
                     Text("Close gesture")
                 }
@@ -268,13 +269,10 @@ struct GeneralSettings: View {
                 }
             }
         } header: {
-            HStack {
-                Text("Gesture control")
-                customBadge(text: "Beta")
-            }
+            Text("Gesture control")
         } footer: {
             Text(
-                "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled"
+                "Two-finger swipe down on the notch to open it and up to close it. With horizontal gestures on, swipe left or right on the open notch to skip or go back a track."
             )
             .multilineTextAlignment(.trailing)
             .foregroundStyle(.secondary)
@@ -371,10 +369,7 @@ struct Media: View {
                 Picker(
                     selection: $hideNotchOption,
                     label:
-                        HStack {
-                            Text("Full screen behavior")
-                            customBadge(text: "Beta")
-                        }
+                        Text("Full screen behavior")
                 ) {
                     Text("Hide for all apps").tag(HideNotchOption.always)
                     Text("Hide for media app only").tag(
@@ -388,10 +383,7 @@ struct Media: View {
             Section {
                 MusicSlotConfigurationView()
                 Defaults.Toggle(key: .enableLyrics) {
-                    HStack {
-                        Text("Show lyrics below artist name")
-                        customBadge(text: "Beta")
-                    }
+                    Text("Show lyrics below artist name")
                 }
             } header: {
                 Text("Media controls")
