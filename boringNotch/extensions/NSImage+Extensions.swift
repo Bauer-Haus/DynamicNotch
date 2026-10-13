@@ -12,10 +12,24 @@ import Foundation
 import CoreImage
 import CoreGraphics
 import CoreImage.CIFilterBuiltins
+import ImageIO
 
 extension NSImage {
 
-    
+    /// Decodes image data straight to a copy no larger than `maxPixelSize` on its longest
+    /// side, without ever decoding the full-size image (album art is often 3000 px square).
+    static func thumbnail(from data: Data, maxPixelSize: Int) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    }
+
     func averageColor(completion: @escaping (NSColor?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
@@ -25,8 +39,9 @@ extension NSImage {
                 return
             }
             
-            let width = cgImage.width
-            let height = cgImage.height
+            // A small thumbnail gives the same average as every pixel of a full-size image.
+            let width = min(cgImage.width, 32)
+            let height = min(cgImage.height, 32)
             let totalPixels = width * height
             
             guard let context = CGContext(data: nil,
@@ -42,6 +57,7 @@ extension NSImage {
                 return
             }
             
+            context.interpolationQuality = .medium
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
             
             guard let data = context.data else {

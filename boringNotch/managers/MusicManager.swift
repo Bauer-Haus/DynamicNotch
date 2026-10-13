@@ -526,7 +526,8 @@ class MusicManager: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
-            if let artworkImage = NSImage(data: artworkData) {
+            // Album art is drawn well under 256 pt even in the open notch; a 512 px copy is plenty.
+            if let artworkImage = NSImage.thumbnail(from: artworkData, maxPixelSize: 512) ?? NSImage(data: artworkData) {
                 DispatchQueue.main.async { [weak self] in
                     self?.usingAppIconForArtwork = false
                     self?.updateAlbumArt(newAlbumArt: artworkImage)
