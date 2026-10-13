@@ -50,8 +50,19 @@ final class AudioLevelMonitor {
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var ioProcID: AudioDeviceIOProcID?
     private var fftSetup: FFTSetup?
+    // Analysis buffers, allocated once per tap so the audio thread never allocates.
     private var window: [Float] = []
-    private var ring: [Float] = []
+    private var ring: [Float] = []           // last fftSize mono samples, circular
+    private var ringWrite = 0
+    private var ringFilled = 0
+    private var samplesSinceAnalysis = 0
+    private var windowed: [Float] = []
+    private var real: [Float] = []
+    private var imag: [Float] = []
+    private var magnitude: [Float] = []
+    private var bandRanges: [Range<Int>] = []
+    private var bandScale: [Float] = []
+    private var bandLevels: [Float] = []
     private var sampleRate: Double = 48000
     private var startedAt: CFAbsoluteTime = 0
 
@@ -208,7 +219,27 @@ final class AudioLevelMonitor {
         for n in 0 ..< fftSize {
             window[n] = 0.5 - 0.5 * cosf(2 * .pi * Float(n) / Float(fftSize - 1))
         }
-        ring.removeAll(keepingCapacity: true)
+        let half = fftSize / 2
+        ring = [Float](repeating: 0, count: fftSize)
+        ringWrite = 0
+        ringFilled = 0
+        samplesSinceAnalysis = 0
+        windowed = [Float](repeating: 0, count: fftSize)
+        real = [Float](repeating: 0, count: half)
+        imag = [Float](repeating: 0, count: half)
+        magnitude = [Float](repeating: 0, count: half)
+        bandLevels = [Float](repeating: 0, count: Self.bandCount)
+        // Bins whose centre frequency is in [lo, hi) for each band, and the band's fixed
+        // scale (gain and width normalisation).
+        let binHz = Float(sampleRate) / Float(fftSize)
+        bandRanges = (0 ..< Self.bandCount).map { b in
+            let lo = max(1, Int(ceilf(Self.bandEdges[b] / binHz)))
+            let hi = min(half, Int(ceilf(Self.bandEdges[b + 1] / binHz)))
+            return lo ..< max(lo, hi)
+        }
+        bandScale = (0 ..< Self.bandCount).map { b in
+            powf(10, Self.bandGainDB[b] / 20) / powf(Float(max(1, bandRanges[b].count)), Self.widthExponent)
+        }
 
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, agg, queue) { [weak self] _, inData, _, _, _ in
@@ -257,7 +288,8 @@ final class AudioLevelMonitor {
 
     private func process(_ inData: UnsafePointer<AudioBufferList>) {
         let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
-        guard let first = buffers.first, let base = first.mData?.assumingMemoryBound(to: Float.self) else { return }
+        guard let first = buffers.first, let base = first.mData?.assumingMemoryBound(to: Float.self),
+              !ring.isEmpty else { return }
 
         // Mono-mix whatever layout we got (interleaved or one buffer per channel).
         var peak: Float = 0
@@ -271,7 +303,7 @@ final class AudioLevelMonitor {
                 }
                 let v = n > 0 ? sum / n : 0
                 peak = max(peak, abs(v))
-                ring.append(v)
+                push(v)
             }
         } else {
             let channels = max(1, Int(first.mNumberChannels))
@@ -281,7 +313,7 @@ final class AudioLevelMonitor {
                 for c in 0 ..< channels { sum += base[f * channels + c] }
                 let v = sum / Float(channels)
                 peak = max(peak, abs(v))
-                ring.append(v)
+                push(v)
             }
         }
 
@@ -289,59 +321,68 @@ final class AudioLevelMonitor {
         _lastCallback = CFAbsoluteTimeGetCurrent()
         if peak > 1e-6 { _heardSignal = true }
         lock.unlock()
+    }
 
-        while ring.count >= fftSize {
-            analyse(Array(ring.prefix(fftSize)))
-            ring.removeFirst(hopSize)
+    /// Adds one sample to the ring and analyses the latest fftSize samples every hopSize.
+    @inline(__always)
+    private func push(_ sample: Float) {
+        ring[ringWrite] = sample
+        ringWrite = ringWrite + 1 == fftSize ? 0 : ringWrite + 1
+        if ringFilled < fftSize { ringFilled += 1 }
+        samplesSinceAnalysis += 1
+        if ringFilled == fftSize && samplesSinceAnalysis >= hopSize {
+            samplesSinceAnalysis = 0
+            analyse()
         }
     }
 
-    private func analyse(_ samples: [Float]) {
+    private func analyse() {
         guard let fftSetup else { return }
-        var windowed = [Float](repeating: 0, count: fftSize)
-        vDSP_vmul(samples, 1, window, 1, &windowed, 1, vDSP_Length(fftSize))
-
         let half = fftSize / 2
-        var real = [Float](repeating: 0, count: half)
-        var imag = [Float](repeating: 0, count: half)
-        var magnitude = [Float](repeating: 0, count: half)
+
+        // Unroll the ring (oldest sample at ringWrite) and apply the window in one pass each.
+        let tail = fftSize - ringWrite
+        ring.withUnsafeBufferPointer { r in
+            window.withUnsafeBufferPointer { w in
+                windowed.withUnsafeMutableBufferPointer { out in
+                    vDSP_vmul(r.baseAddress! + ringWrite, 1, w.baseAddress!, 1, out.baseAddress!, 1, vDSP_Length(tail))
+                    if ringWrite > 0 {
+                        vDSP_vmul(r.baseAddress!, 1, w.baseAddress! + tail, 1, out.baseAddress! + tail, 1, vDSP_Length(ringWrite))
+                    }
+                }
+            }
+        }
 
         real.withUnsafeMutableBufferPointer { rp in
             imag.withUnsafeMutableBufferPointer { ip in
-                var split = DSPSplitComplex(realp: rp.baseAddress!, imagp: ip.baseAddress!)
-                windowed.withUnsafeBufferPointer { wp in
-                    wp.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: half) {
-                        vDSP_ctoz($0, 2, &split, 1, vDSP_Length(half))
+                magnitude.withUnsafeMutableBufferPointer { mp in
+                    var split = DSPSplitComplex(realp: rp.baseAddress!, imagp: ip.baseAddress!)
+                    windowed.withUnsafeBufferPointer { wp in
+                        wp.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: half) {
+                            vDSP_ctoz($0, 2, &split, 1, vDSP_Length(half))
+                        }
                     }
+                    vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
+                    vDSP_zvabs(&split, 1, mp.baseAddress!, 1, vDSP_Length(half))
                 }
-                vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
-                vDSP_zvabs(&split, 1, &magnitude, 1, vDSP_Length(half))
             }
         }
-        // vDSP's real FFT is scaled by 2 relative to the plain DFT.
-        var half2: Float = 0.5
-        vDSP_vsmul(magnitude, 1, &half2, &magnitude, 1, vDSP_Length(half))
 
-        let edges = Self.bandEdges
-        let binHz = Float(sampleRate) / Float(fftSize)
-
-        var out = [Float](repeating: 0, count: Self.bandCount)
-        for b in 0 ..< Self.bandCount {
-            // Bins whose centre frequency is in [lo, hi).
-            let lo = max(1, Int(ceilf(edges[b] / binHz)))
-            let hi = min(half, Int(ceilf(edges[b + 1] / binHz)))
-            var sum: Float = 0
-            if hi > lo {
-                magnitude.withUnsafeBufferPointer { m in
-                    vDSP_sve(m.baseAddress! + lo, 1, &sum, vDSP_Length(hi - lo))
+        magnitude.withUnsafeBufferPointer { m in
+            for b in 0 ..< Self.bandCount {
+                let range = bandRanges[b]
+                var sum: Float = 0
+                if !range.isEmpty {
+                    vDSP_sve(m.baseAddress! + range.lowerBound, 1, &sum, vDSP_Length(range.count))
                 }
+                // vDSP's real FFT is scaled by 2 relative to the plain DFT.
+                sum *= 0.5 * bandScale[b]
+                bandLevels[b] = max(0, min(1, Self.curveScale * powf(sum, Self.curveExponent) - Self.curveFloor))
             }
-            sum *= powf(10, Self.bandGainDB[b] / 20) / powf(Float(max(1, hi - lo)), Self.widthExponent)
-            out[b] = max(0, min(1, Self.curveScale * powf(sum, Self.curveExponent) - Self.curveFloor))
         }
 
         lock.lock()
-        _levels = out
+        _levels = bandLevels
         lock.unlock()
     }
 
@@ -454,6 +495,37 @@ class AudioSpectrum: NSView {
     deinit {
         animationTimer?.invalidate()
         if holdsMonitor { AudioLevelMonitor.shared.release() }
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+    }
+
+    private var occlusionObserver: Any?
+
+    /// Only animate (and keep the audio tap running) while the notch is actually on screen:
+    /// not while the display sleeps, the screen is locked or another space covers it.
+    private var isVisible: Bool {
+        window?.occlusionState.contains(.visible) ?? false
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+        if let window {
+            occlusionObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateRunning() }
+            }
+        }
+        updateRunning()
+    }
+
+    private func updateRunning() {
+        if isPlaying && isVisible {
+            startAnimating()
+        } else if animationTimer != nil || holdsMonitor {
+            stopAnimating()
+        }
     }
 
     private func setupBars() {
@@ -554,11 +626,7 @@ class AudioSpectrum: NSView {
     func setPlaying(_ playing: Bool) {
         guard playing != isPlaying else { return }
         isPlaying = playing
-        if isPlaying {
-            startAnimating()
-        } else {
-            stopAnimating()
-        }
+        updateRunning()
     }
 }
 
