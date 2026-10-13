@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		111BE95D2ECD71E10079DD4E /* AsyncXPCConnection in Frameworks */ = {isa = PBXBuildFile; productRef = 111BE95C2ECD71E10079DD4E /* AsyncXPCConnection */; };
 		111BEA512ECFBF7F0079DD4E /* MacroVisionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 111BEA502ECFBF7F0079DD4E /* MacroVisionKit */; };
 		111BEA5F2ED07A340079DD4E /* MacroVisionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 111BEA5E2ED07A340079DD4E /* MacroVisionKit */; };
 		111BEA612ED09B1B0079DD4E /* NSScreen+UUID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111BEA602ED09B1B0079DD4E /* NSScreen+UUID.swift */; };
@@ -41,9 +40,6 @@
 		11CFC6632E09918400748C80 /* MusicControllerSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CFC6622E09917B00748C80 /* MusicControllerSelectionView.swift */; };
 		11CFC6652E09C7B300748C80 /* OnboardingFinishView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CFC6642E09C7B300748C80 /* OnboardingFinishView.swift */; };
 		11D58EA22E760AE100FA8377 /* ImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D58EA12E760AE100FA8377 /* ImageService.swift */; };
-		11F7485B2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 11F7484F2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		11F748682EC9AC9600F841DB /* BoringNotchXPCHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F748652EC9AC9600F841DB /* BoringNotchXPCHelperProtocol.swift */; };
-		11F748692EC9AC9600F841DB /* XPCHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F748662EC9AC9600F841DB /* XPCHelperClient.swift */; };
 		11F748732EC9DA9300F841DB /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 11F748722EC9DA9300F841DB /* Lottie */; };
 		11F748822ECB07A400F841DB /* MusicControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F748812ECB07A400F841DB /* MusicControlButton.swift */; };
 		11F748842ECB27DC00F841DB /* MusicSlotConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */; };
@@ -74,7 +70,6 @@
 		B1628B922CC260C0003D8DF3 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = B1628B912CC260C0003D8DF3 /* SwiftUIIntrospect */; };
 		B17266DF2C64DFA00031BA0D /* BundleInfos.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17266DE2C64DFA00031BA0D /* BundleInfos.swift */; };
 		B17266E12C6532560031BA0D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B17266E02C6532560031BA0D /* Localizable.xcstrings */; };
-		B18654392C6F4990000B926A /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = B18654382C6F4990000B926A /* KeyboardShortcuts */; };
 		B19016222CC15B3D00E3F12E /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = B19016212CC15B3D00E3F12E /* Defaults */; };
 		B19016242CC15B5000E3F12E /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19016232CC15B4D00E3F12E /* Constants.swift */; };
 		B19424092CD0FF01003E5DC2 /* LottieAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */; };
@@ -87,27 +82,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		11F748592EC9AABA00F841DB /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 14CEF40A2C5CAED200855D72 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 11F7484E2EC9AABA00F841DB;
-			remoteInfo = BoringNotchXPCHelper;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		11F748412EC8051E00F841DB /* Embed XPC Services */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
-			dstSubfolderSpec = 16;
-			files = (
-				11F7485B2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc in Embed XPC Services */,
-			);
-			name = "Embed XPC Services";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B1ECFA062C6FE58A002ACD87 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 12;
@@ -150,9 +127,6 @@
 		11CFC6622E09917B00748C80 /* MusicControllerSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicControllerSelectionView.swift; sourceTree = "<group>"; };
 		11CFC6642E09C7B300748C80 /* OnboardingFinishView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFinishView.swift; sourceTree = "<group>"; };
 		11D58EA12E760AE100FA8377 /* ImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageService.swift; sourceTree = "<group>"; };
-		11F7484F2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = BoringNotchXPCHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
-		11F748652EC9AC9600F841DB /* BoringNotchXPCHelperProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoringNotchXPCHelperProtocol.swift; sourceTree = "<group>"; };
-		11F748662EC9AC9600F841DB /* XPCHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPCHelperClient.swift; sourceTree = "<group>"; };
 		11F748812ECB07A400F841DB /* MusicControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicControlButton.swift; sourceTree = "<group>"; };
 		11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSlotConfigurationView.swift; sourceTree = "<group>"; };
 		14288DD62C6E015000B9F80C /* AudioPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
@@ -194,28 +168,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		11F7485C2EC9AABA00F841DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 11F7484E2EC9AABA00F841DB /* BoringNotchXPCHelper */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		112FB72F2CCF12CC0015238C /* private */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = private; sourceTree = "<group>"; };
-		11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (11F7485C2EC9AABA00F841DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = BoringNotchXPCHelper; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		11F7484C2EC9AABA00F841DB /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		14CEF40F2C5CAED300855D72 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -229,9 +188,7 @@
 				11F748732EC9DA9300F841DB /* Lottie in Frameworks */,
 				14D0321A2C68F32E0096E6A1 /* LaunchAtLogin in Frameworks */,
 				111BEA512ECFBF7F0079DD4E /* MacroVisionKit in Frameworks */,
-				B18654392C6F4990000B926A /* KeyboardShortcuts in Frameworks */,
 				B19016222CC15B3D00E3F12E /* Defaults in Frameworks */,
-				111BE95D2ECD71E10079DD4E /* AsyncXPCConnection in Frameworks */,
 				B1628B922CC260C0003D8DF3 /* SwiftUIIntrospect in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -269,15 +226,6 @@
 				1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */,
 			);
 			path = MediaControllers;
-			sourceTree = "<group>";
-		};
-		11F748672EC9AC9600F841DB /* XPCHelperClient */ = {
-			isa = PBXGroup;
-			children = (
-				11F748652EC9AC9600F841DB /* BoringNotchXPCHelperProtocol.swift */,
-				11F748662EC9AC9600F841DB /* XPCHelperClient.swift */,
-			);
-			path = XPCHelperClient;
 			sourceTree = "<group>";
 		};
 		14288DD92C6E015000B9F80C /* helpers */ = {
@@ -338,7 +286,6 @@
 			children = (
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
-				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
 				14CEF4132C5CAED300855D72 /* Products */,
 				14D031EC2C689DB70096E6A1 /* Frameworks */,
 			);
@@ -348,7 +295,6 @@
 			isa = PBXGroup;
 			children = (
 				14CEF4122C5CAED300855D72 /* Boring Notch.app */,
-				11F7484F2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -356,7 +302,6 @@
 		14CEF4142C5CAED300855D72 /* boringNotch */ = {
 			isa = PBXGroup;
 			children = (
-				11F748672EC9AC9600F841DB /* XPCHelperClient */,
 				14288DE22C6E016F00B9F80C /* observers */,
 				14288DD92C6E015000B9F80C /* helpers */,
 				1443E7F12C609DB90027C1FC /* sizing */,
@@ -495,28 +440,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		11F7484E2EC9AABA00F841DB /* BoringNotchXPCHelper */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 11F7485D2EC9AABA00F841DB /* Build configuration list for PBXNativeTarget "BoringNotchXPCHelper" */;
-			buildPhases = (
-				11F7484B2EC9AABA00F841DB /* Sources */,
-				11F7484C2EC9AABA00F841DB /* Frameworks */,
-				11F7484D2EC9AABA00F841DB /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
-			);
-			name = BoringNotchXPCHelper;
-			packageProductDependencies = (
-			);
-			productName = BoringNotchXPCHelper;
-			productReference = 11F7484F2EC9AABA00F841DB /* BoringNotchXPCHelper.xpc */;
-			productType = "com.apple.product-type.xpc-service";
-		};
 		14CEF4112C5CAED300855D72 /* boringNotch */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 14CEF4212C5CAED400855D72 /* Build configuration list for PBXNativeTarget "boringNotch" */;
@@ -525,12 +448,10 @@
 				14CEF40F2C5CAED300855D72 /* Frameworks */,
 				14CEF4102C5CAED300855D72 /* Resources */,
 				B1ECFA062C6FE58A002ACD87 /* Embed Frameworks */,
-				11F748412EC8051E00F841DB /* Embed XPC Services */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				11F7485A2EC9AABA00F841DB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				112FB72F2CCF12CC0015238C /* private */,
@@ -539,13 +460,11 @@
 			packageProductDependencies = (
 				14D032192C68F32E0096E6A1 /* LaunchAtLogin */,
 				14D0321C2C68F3350096E6A1 /* Sparkle */,
-				B18654382C6F4990000B926A /* KeyboardShortcuts */,
 				9A987A0F2C73CA8D005CA465 /* Collections */,
 				B19016212CC15B3D00E3F12E /* Defaults */,
 				B1628B912CC260C0003D8DF3 /* SwiftUIIntrospect */,
 				1194E8842EA57D23009C82D6 /* SkyLightWindow */,
 				11F748722EC9DA9300F841DB /* Lottie */,
-				111BE95C2ECD71E10079DD4E /* AsyncXPCConnection */,
 				111BEA502ECFBF7F0079DD4E /* MacroVisionKit */,
 				111BEA5E2ED07A340079DD4E /* MacroVisionKit */,
 				111BEA6E2ED166E20079DD4E /* MacroVisionKit */,
@@ -564,9 +483,6 @@
 				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
-					11F7484E2EC9AABA00F841DB = {
-						CreatedOnToolsVersion = 16.4;
-					};
 					14CEF4112C5CAED300855D72 = {
 						CreatedOnToolsVersion = 15.4;
 						LastSwiftMigration = 1540;
@@ -585,14 +501,12 @@
 			packageReferences = (
 				14D032182C68F32E0096E6A1 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				14D0321B2C68F3350096E6A1 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				9A987A0E2C73CA8D005CA465 /* XCRemoteSwiftPackageReference "swift-collections" */,
 				9A987A112C73CAA1005CA465 /* XCRemoteSwiftPackageReference "Pow" */,
 				B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */,
 				B1628B902CC260C0003D8DF3 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 				1194E8832EA57D23009C82D6 /* XCRemoteSwiftPackageReference "SkyLightWindow" */,
 				11F748712EC9DA9300F841DB /* XCRemoteSwiftPackageReference "lottie-spm" */,
-				111BE95B2ECD71E10079DD4E /* XCRemoteSwiftPackageReference "AsyncXPCConnection" */,
 				111BEA6D2ED166E20079DD4E /* XCRemoteSwiftPackageReference "MacroVisionKit" */,
 			);
 			productRefGroup = 14CEF4132C5CAED300855D72 /* Products */;
@@ -600,19 +514,11 @@
 			projectRoot = "";
 			targets = (
 				14CEF4112C5CAED300855D72 /* boringNotch */,
-				11F7484E2EC9AABA00F841DB /* BoringNotchXPCHelper */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		11F7484D2EC9AABA00F841DB /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		14CEF4102C5CAED300855D72 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -629,13 +535,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		11F7484B2EC9AABA00F841DB /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		14CEF40E2C5CAED300855D72 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -683,8 +582,6 @@
 				B17266DF2C64DFA00031BA0D /* BundleInfos.swift in Sources */,
 				B10348D92C74E56000475897 /* ConditionalModifier.swift in Sources */,
 				118EBE252E92DCCB00D54B5A /* AssociatedObject.swift in Sources */,
-				11F748682EC9AC9600F841DB /* BoringNotchXPCHelperProtocol.swift in Sources */,
-				11F748692EC9AC9600F841DB /* XPCHelperClient.swift in Sources */,
 				B1FEB4992C7686630066EBBC /* PanGesture.swift in Sources */,
 				11F748842ECB27DC00F841DB /* MusicSlotConfigurationView.swift in Sources */,
 				112FB7352CCF16F70015238C /* NotchSpaceManager.swift in Sources */,
@@ -702,64 +599,9 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		11F7485A2EC9AABA00F841DB /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 11F7484E2EC9AABA00F841DB /* BoringNotchXPCHelper */;
-			targetProxy = 11F748592EC9AABA00F841DB /* PBXContainerItemProxy */;
-		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		11F7485E2EC9AABA00F841DB /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = BoringNotchXPCHelper/BoringNotchXPCHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 271;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = BoringNotchXPCHelper/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = BoringNotchXPCHelper;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.7.3;
-				PRODUCT_BUNDLE_IDENTIFIER = theboringteam.boringnotch.BoringNotchXPCHelper;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		11F7485F2EC9AABA00F841DB /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = BoringNotchXPCHelper/BoringNotchXPCHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 271;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = BoringNotchXPCHelper/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = BoringNotchXPCHelper;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.7.3;
-				PRODUCT_BUNDLE_IDENTIFIER = theboringteam.boringnotch.BoringNotchXPCHelper;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 		14CEF41F2C5CAED400855D72 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -916,10 +758,7 @@
 				INFOPLIST_KEY_LSBackgroundOnly = NO;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "This app uses AppleEvents to control music";
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app uses the calendar to display your calendar events";
-				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to display a live camera view";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSRemindersUsageDescription = "This app uses Reminders to display your scheduled reminder in the calendar";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -970,10 +809,7 @@
 				INFOPLIST_KEY_LSBackgroundOnly = NO;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "This app uses AppleEvents to control music";
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app uses the calendar to display your calendar events";
-				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to display a live camera view";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSRemindersUsageDescription = "This app uses Reminders to display your scheduled reminder in the calendar";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -996,15 +832,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		11F7485D2EC9AABA00F841DB /* Build configuration list for PBXNativeTarget "BoringNotchXPCHelper" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				11F7485E2EC9AABA00F841DB /* Debug */,
-				11F7485F2EC9AABA00F841DB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		14CEF40D2C5CAED200855D72 /* Build configuration list for PBXProject "boringNotch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1026,14 +853,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		111BE95B2ECD71E10079DD4E /* XCRemoteSwiftPackageReference "AsyncXPCConnection" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ChimeHQ/AsyncXPCConnection";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.3.0;
-			};
-		};
 		111BEA6D2ED166E20079DD4E /* XCRemoteSwiftPackageReference "MacroVisionKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/TheBoredTeam/MacroVisionKit";
@@ -1098,14 +917,6 @@
 				minimumVersion = 1.3.0;
 			};
 		};
-		B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.2.4;
-			};
-		};
 		B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/Defaults";
@@ -1117,11 +928,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		111BE95C2ECD71E10079DD4E /* AsyncXPCConnection */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 111BE95B2ECD71E10079DD4E /* XCRemoteSwiftPackageReference "AsyncXPCConnection" */;
-			productName = AsyncXPCConnection;
-		};
 		111BEA502ECFBF7F0079DD4E /* MacroVisionKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MacroVisionKit;
@@ -1164,11 +970,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B1628B902CC260C0003D8DF3 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
 			productName = SwiftUIIntrospect;
-		};
-		B18654382C6F4990000B926A /* KeyboardShortcuts */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
-			productName = KeyboardShortcuts;
 		};
 		B19016212CC15B3D00E3F12E /* Defaults */ = {
 			isa = XCSwiftPackageProductDependency;
