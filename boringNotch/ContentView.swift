@@ -58,6 +58,13 @@ struct ContentView: View {
         )
     }
 
+    /// Width of the visualizer slot on the right of the closed notch. 6 bars at the original
+    /// size (2pt wide, 2pt gap) need 24pt; the slot is otherwise the album-art square.
+    private var visualizerWidth: CGFloat {
+        let square = max(0, vm.effectiveClosedNotchHeight - 12)
+        return useMusicVisualizer ? max(square, 24) : square
+    }
+
     private var computedChinWidth: CGFloat {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
@@ -69,7 +76,7 @@ struct ContentView: View {
             && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
         {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+            chinWidth += (max(0, vm.effectiveClosedNotchHeight - 12) + visualizerWidth + 20)
         } else if !coordinator.expandingView.show && vm.notchState == .closed
             && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace]
             && !vm.hideOnClosed
@@ -460,7 +467,7 @@ struct ContentView: View {
                         .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                         .mask {
                             AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                .frame(width: 16, height: 12)
+                                .frame(width: 24, height: 12)
                         }
                 } else {
                     LottieAnimationContainer()
@@ -470,7 +477,7 @@ struct ContentView: View {
             .frame(
                 width: max(
                     0,
-                    vm.effectiveClosedNotchHeight - 12
+                    visualizerWidth
                         + gestureProgress / 2
                 ),
                 height: max(
