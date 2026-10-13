@@ -60,19 +60,31 @@ final class AudioLevelMonitor {
     private var targetBundleID: String?
     private var tappedBundleID: String?
     private var isRunning = false
+    private var outputDeviceListener: AudioObjectPropertyListenerBlock?
 
     private let lock = NSLock()
-    private var _levels = [Float](repeating: 0, count: bandCount)
+    /// Recent analyses, oldest first, so the display can show the one you are hearing now.
+    private var _history: [(time: CFAbsoluteTime, levels: [Float])] = []
+    private var _displayDelay: Double = 0
     private var _lastCallback: CFAbsoluteTime = 0
     private var _heardSignal = false
 
-    /// Latest band levels, plus whether they are real (tap delivering actual audio).
+    /// Band levels for the audio you are hearing right now, plus whether they are real
+    /// (tap delivering actual audio).
+    ///
+    /// The tap sees audio when it is mixed, but the output device plays it later: ~170 ms
+    /// for AirPods, a few ms for built-in speakers. Results are held back by that latency
+    /// (minus the analysis window's own lag) so the bars line up with what you hear.
     func snapshot() -> (levels: [Float], isLive: Bool) {
         lock.lock(); defer { lock.unlock() }
+        let now = CFAbsoluteTimeGetCurrent()
+        let target = now - _displayDelay
+        let levels = _history.last(where: { $0.time <= target })?.levels
+            ?? [Float](repeating: 0, count: Self.bandCount)
         // A denied permission still delivers buffers, but they are all zeros. Until any
         // non-silent audio has arrived, report not-live so the view keeps animating.
-        let fresh = CFAbsoluteTimeGetCurrent() - _lastCallback < 0.5
-        return (_levels, fresh && _heardSignal)
+        let fresh = now - _lastCallback < 0.5 + _displayDelay
+        return (levels, fresh && _heardSignal)
     }
 
     /// A view wants live levels. Balanced with `release()`.
@@ -80,7 +92,26 @@ final class AudioLevelMonitor {
         queue.async { [weak self] in
             guard let self else { return }
             self.users += 1
+            self.observeOutputDevice()
             self.startLocked()
+        }
+    }
+
+    /// Switching output (e.g. to AirPods) changes both the clock device and the latency,
+    /// so rebuild the tap.
+    private func observeOutputDevice() {
+        guard outputDeviceListener == nil else { return }
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, self.users > 0 else { return }
+            self.teardown()
+            self.startLocked()
+        }
+        if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue, listener) == noErr {
+            outputDeviceListener = listener
         }
     }
 
@@ -204,6 +235,13 @@ final class AudioLevelMonitor {
         }
         startedAt = CFAbsoluteTimeGetCurrent()
         isRunning = true
+
+        // The analysis window already lags the newest audio by about half its length.
+        let windowLag = Double(fftSize / 2) / sampleRate
+        let delay = max(0, (Self.defaultOutputDevice().map(Self.outputLatency) ?? 0) - windowLag)
+        lock.lock()
+        _displayDelay = delay
+        lock.unlock()
     }
 
     private func teardown() {
@@ -225,7 +263,7 @@ final class AudioLevelMonitor {
         tappedBundleID = nil
         isRunning = false
         lock.lock()
-        _levels = [Float](repeating: 0, count: Self.bandCount)
+        _history.removeAll()
         _lastCallback = 0
         _heardSignal = false
         lock.unlock()
@@ -318,8 +356,12 @@ final class AudioLevelMonitor {
             out[b] = max(0, min(1, Self.curveScale * powf(sum, Self.curveExponent) - Self.curveFloor))
         }
 
+        let now = CFAbsoluteTimeGetCurrent()
         lock.lock()
-        _levels = out
+        _history.append((now, out))
+        if let drop = _history.firstIndex(where: { $0.time >= now - _displayDelay - 0.25 }), drop > 0 {
+            _history.removeFirst(drop)
+        }
         lock.unlock()
     }
 
@@ -358,16 +400,57 @@ final class AudioLevelMonitor {
         return status == noErr && object != kAudioObjectUnknown ? object : nil
     }
 
-    private static func defaultOutputDeviceUID() -> String? {
+    /// The device music plays through.
+    private static func defaultOutputDevice() -> AudioObjectID? {
         var addr = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultSystemOutputDevice,
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
         var device = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr,
+              device != kAudioObjectUnknown
         else { return nil }
-        return stringProperty(device, kAudioDevicePropertyDeviceUID)
+        return device
+    }
+
+    private static func defaultOutputDeviceUID() -> String? {
+        defaultOutputDevice().flatMap { stringProperty($0, kAudioDevicePropertyDeviceUID) }
+    }
+
+    /// Seconds between audio being mixed and coming out of the device: device latency,
+    /// safety offset, IO buffer and the output stream's own latency.
+    private static func outputLatency(of device: AudioObjectID) -> Double {
+        func value(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope) -> UInt32 {
+            var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+            var v: UInt32 = 0
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            return AudioObjectGetPropertyData(object, &addr, 0, nil, &size, &v) == noErr ? v : 0
+        }
+        var frames = value(device, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput)
+            + value(device, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput)
+            + value(device, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal)
+
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioObjectPropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        if AudioObjectGetPropertyDataSize(device, &addr, 0, nil, &size) == noErr, size >= UInt32(MemoryLayout<AudioObjectID>.size) {
+            var streams = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+            if AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &streams) == noErr, let first = streams.first {
+                frames += value(first, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal)
+            }
+        }
+
+        var rateAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var rate: Float64 = 0
+        var rateSize = UInt32(MemoryLayout<Float64>.size)
+        guard AudioObjectGetPropertyData(device, &rateAddr, 0, nil, &rateSize, &rate) == noErr, rate > 0 else { return 0 }
+        return Double(frames) / rate
     }
 
     private static func stringProperty(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
