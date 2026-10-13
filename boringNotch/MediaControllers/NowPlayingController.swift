@@ -226,6 +226,9 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     }
 
     // MARK: - Update Methods
+    /// Formatters are expensive to create; the adapter sends an update on every change.
+    private static let timestampFormatter = ISO8601DateFormatter()
+
     private func handleAdapterUpdate(_ update: NowPlayingUpdate) async {
         let payload = update.payload
         let diff = update.diff ?? false
@@ -275,7 +278,7 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         }
 
         if let dateString = payload.timestamp,
-           let date = ISO8601DateFormatter().date(from: dateString) {
+           let date = Self.timestampFormatter.date(from: dateString) {
             newPlaybackState.lastUpdated = date
         } else if !diff {
             newPlaybackState.lastUpdated = Date()
@@ -350,7 +353,10 @@ struct NowPlayingPayload: Codable {
 actor JSONLinesPipeHandler {
     private let pipe: Pipe
     private let fileHandle: FileHandle
-    private var buffer = ""
+    /// Bytes received but not yet terminated by a newline. Lines carrying artwork are
+    /// hundreds of KB, so lines are split on raw bytes, scanning only the new data.
+    private var buffer = Data()
+    private let decoder = JSONDecoder()
     
     init() {
         self.pipe = Pipe()
@@ -372,37 +378,28 @@ actor JSONLinesPipeHandler {
     }
     
     private func processLines<T: Decodable>(as type: T.Type, onLine: @escaping (T) async -> Void) async throws {
+        let newline = UInt8(ascii: "\n")
         while true {
             let data = try await readData()
             guard !data.isEmpty else { break }
-            
-            if let chunk = String(data: data, encoding: .utf8) {
-                buffer.append(chunk)
-                
-                while let range = buffer.range(of: "\n") {
-                    let line = String(buffer[..<range.lowerBound])
-                    buffer = String(buffer[range.upperBound...])
-                    
-                    if !line.isEmpty {
-                        await processJSONLine(line, as: type, onLine: onLine)
-                    }
+
+            var searchFrom = buffer.count
+            buffer.append(data)
+            var lineStart = buffer.startIndex
+            while let end = buffer[(buffer.startIndex + searchFrom)...].firstIndex(of: newline) {
+                let line = buffer[lineStart ..< end]
+                if !line.isEmpty, let decoded = try? decoder.decode(T.self, from: Data(line)) {
+                    await onLine(decoded)
                 }
+                lineStart = end + 1
+                searchFrom = lineStart - buffer.startIndex
+            }
+            if lineStart > buffer.startIndex {
+                buffer.removeSubrange(buffer.startIndex ..< lineStart)
             }
         }
     }
-    
-    private func processJSONLine<T: Decodable>(_ line: String, as type: T.Type, onLine: @escaping (T) async -> Void) async {
-        guard let data = line.data(using: .utf8) else {
-            return
-        }
-        do {
-            let decodedObject = try JSONDecoder().decode(T.self, from: data)
-            await onLine(decodedObject)
-        } catch {
-            // Ignore lines that can't be decoded
-        }
-    }
-    
+
     private func readData() async throws -> Data {
         return try await withCheckedThrowingContinuation { continuation in
             
