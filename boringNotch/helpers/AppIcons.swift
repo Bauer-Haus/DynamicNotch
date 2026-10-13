@@ -8,54 +8,26 @@
 import SwiftUI
 import AppKit
 
-struct AppIcons {
-    
-    func getIcon(file path: String) -> NSImage? {
-        guard FileManager.default.fileExists(atPath: path)
-        else { return nil }
-        
-        return NSWorkspace.shared.icon(forFile: path)
+/// App icons by bundle id. Looking an app up through LaunchServices on every view update
+/// is wasteful; icons don't change while the app runs.
+private let appIconCache: NSCache<NSString, NSImage> = {
+    let cache = NSCache<NSString, NSImage>()
+    cache.countLimit = 16
+    return cache
+}()
+
+func AppIconAsNSImage(for bundleID: String) -> NSImage? {
+    if let cached = appIconCache.object(forKey: bundleID as NSString) {
+        return cached
     }
-    
-    func getIcon(bundleID: String) -> NSImage? {
-        guard let path = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: bundleID
-        )?.absoluteString
-        else { return nil }
-        
-        return getIcon(file: path)
-    }
-    
-        /// Easily read Info.plist as a Dictionary from any bundle by accessing .infoDictionary on Bundle
-    func bundle(forBundleID: String) -> Bundle? {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: forBundleID)
-        else { return nil }
-        
-        return Bundle(url: url)
-    }
-    
+    let workspace = NSWorkspace.shared
+    guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+    let appIcon = workspace.icon(forFile: appURL.path)
+    appIcon.size = NSSize(width: 256, height: 256)
+    appIconCache.setObject(appIcon, forKey: bundleID as NSString)
+    return appIcon
 }
 
 func AppIcon(for bundleID: String) -> Image {
-    let workspace = NSWorkspace.shared
-    
-    if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
-        let appIcon = workspace.icon(forFile: appURL.path)
-        return Image(nsImage: appIcon)
-    }
-    
-    return Image(nsImage: workspace.icon(for: .applicationBundle))
+    Image(nsImage: AppIconAsNSImage(for: bundleID) ?? NSWorkspace.shared.icon(for: .applicationBundle))
 }
-
-
-func AppIconAsNSImage(for bundleID: String) -> NSImage? {
-    let workspace = NSWorkspace.shared
-    
-    if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
-        let appIcon = workspace.icon(forFile: appURL.path)
-        appIcon.size = NSSize(width: 256, height: 256)
-        return appIcon
-    }
-    return nil
-}
-

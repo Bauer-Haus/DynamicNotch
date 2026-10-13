@@ -558,10 +558,15 @@ class MusicManager: ObservableObject {
         workItem?.cancel()
         withAnimation(.smooth) {
             self.albumArt = newAlbumArt
-            if Defaults[.coloredSpectrogram] {
+            if usesAverageColor {
                 self.calculateAverageColor()
             }
         }
+    }
+
+    /// The album-art colour tints the visualizer, the player text and optionally the slider.
+    private var usesAverageColor: Bool {
+        Defaults[.coloredSpectrogram] || Defaults[.playerColorTinting] || Defaults[.sliderColor] == .albumArt
     }
 
     // MARK: - Playback Position Estimation
