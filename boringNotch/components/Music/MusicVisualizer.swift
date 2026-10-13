@@ -25,8 +25,12 @@ final class AudioLevelMonitor {
     static let bandCount = 6
     /// Band edges in Hz (bandCount + 1 values), log-spaced from bass to treble.
     private static let bandEdges: [Float] = [60, 150, 350, 800, 1800, 4000, 10000]
-    /// Levels are shown over this many dB below the loudest recent band.
-    private static let dynamicRange: Float = 36
+    /// Where a band sits when it is at its own recent average (0...1).
+    private static let restLevel: Float = 0.4
+    /// dB above a band's recent average needed to reach the top.
+    private static let peakDB: Float = 12
+    /// Per-analysis-frame smoothing (~94 frames/s) for each band's running average (~1.5 s).
+    private static let averageRate: Float = 0.007
 
     private let fftSize = 1024
     private let log2n: vDSP_Length = 10
@@ -40,6 +44,7 @@ final class AudioLevelMonitor {
     private var ring: [Float] = []
     private var sampleRate: Double = 48000
     private var referenceDB: Float = -40
+    private var bandAverageDB = [Float](repeating: -120, count: bandCount)
     private var startedAt: CFAbsoluteTime = 0
 
     // Touched only on `queue`.
@@ -172,6 +177,7 @@ final class AudioLevelMonitor {
         vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
         ring.removeAll(keepingCapacity: true)
         referenceDB = -40
+        bandAverageDB = [Float](repeating: -120, count: Self.bandCount)
 
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, agg, queue) { [weak self] _, inData, _, _, _ in
@@ -300,14 +306,20 @@ final class AudioLevelMonitor {
             bandDB[b] = 10 * log10f(mean + 1e-12) + tilt
         }
 
-        // One shared reference for all bars (not per bar), so their relative heights stay
-        // true to the music. It jumps up to new peaks and relaxes slowly when it gets quieter.
+        // Each bar shows movement around its band's own recent average, so a dense, loud
+        // mix rests mid-height and only hits (kick, snare, vocal swells) reach the top.
+        // A slow overall reference pulls every bar down in quiet passages and fades.
         let loudest = bandDB.max() ?? -120
-        referenceDB = loudest > referenceDB ? loudest : max(loudest, referenceDB - 0.05)
+        referenceDB = loudest > referenceDB ? referenceDB + (loudest - referenceDB) * 0.05 : max(loudest, referenceDB - 0.03)
+        let gate = max(0, min(1, (loudest - (referenceDB - 30)) / 18))
 
         var out = [Float](repeating: 0, count: Self.bandCount)
         for b in 0 ..< Self.bandCount {
-            out[b] = max(0, min(1, (bandDB[b] - (referenceDB - Self.dynamicRange)) / Self.dynamicRange))
+            if bandAverageDB[b] < -100 { bandAverageDB[b] = bandDB[b] }
+            bandAverageDB[b] += (bandDB[b] - bandAverageDB[b]) * Self.averageRate
+            let above = bandDB[b] - bandAverageDB[b]
+            let level = Self.restLevel + (1 - Self.restLevel) * above / Self.peakDB
+            out[b] = max(0, min(1, level)) * gate
         }
 
         lock.lock()
