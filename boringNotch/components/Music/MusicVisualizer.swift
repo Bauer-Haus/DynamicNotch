@@ -21,10 +21,11 @@ import SwiftUI
 /// Taps the output audio of the now-playing app and publishes band levels (0...1).
 ///
 /// The analysis reproduces the iPhone Dynamic Island waveform, fitted to 120 fps captures
-/// of test tones, tone volume steps and pink noise: a 4096-sample Hann FFT every 4096
-/// samples (~12 Hz), each bar summing the FFT magnitudes in its band (lightly normalised
+/// of test tones, tone volume steps and pink noise: a 4096-sample Hann FFT, each bar summing the FFT magnitudes in its band (lightly normalised
 /// by band width), mapped through a power curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to
-/// fill a bar.
+/// fill a bar. The iPhone analyses every 4096 samples and glides between results, which
+/// lags ~190 ms behind the sound; here the same window is analysed every 1024 samples
+/// (~21 ms) and shown directly, cutting the lag to ~70 ms with the same response.
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
@@ -42,6 +43,7 @@ final class AudioLevelMonitor {
 
     private let fftSize = 4096
     private let log2n: vDSP_Length = 12
+    private let hopSize = 1024
     private let queue = DispatchQueue(label: "boringNotch.audioLevelMonitor", qos: .userInteractive)
 
     private var tapID = AudioObjectID(kAudioObjectUnknown)
@@ -61,24 +63,16 @@ final class AudioLevelMonitor {
 
     private let lock = NSLock()
     private var _levels = [Float](repeating: 0, count: bandCount)
-    private var _previousLevels = [Float](repeating: 0, count: bandCount)
-    private var _levelsTime: CFAbsoluteTime = 0
-    private var _hopDuration: Double = 4096.0 / 48000.0
     private var _lastCallback: CFAbsoluteTime = 0
     private var _heardSignal = false
 
-    /// Band levels for this moment, plus whether they are real (tap delivering actual audio).
-    /// Like the iPhone, the display glides linearly from the previous analysis to the latest
-    /// one over one analysis period, so bars move in ~85 ms ramps.
+    /// Latest band levels, plus whether they are real (tap delivering actual audio).
     func snapshot() -> (levels: [Float], isLive: Bool) {
         lock.lock(); defer { lock.unlock() }
-        let now = CFAbsoluteTimeGetCurrent()
-        let t = Float(max(0, min(1, (now - _levelsTime) / _hopDuration)))
-        let levels = zip(_previousLevels, _levels).map { $0 + ($1 - $0) * t }
         // A denied permission still delivers buffers, but they are all zeros. Until any
         // non-silent audio has arrived, report not-live so the view keeps animating.
-        let fresh = now - _lastCallback < 0.5
-        return (levels, fresh && _heardSignal)
+        let fresh = CFAbsoluteTimeGetCurrent() - _lastCallback < 0.5
+        return (_levels, fresh && _heardSignal)
     }
 
     /// A view wants live levels. Balanced with `release()`.
@@ -232,7 +226,6 @@ final class AudioLevelMonitor {
         isRunning = false
         lock.lock()
         _levels = [Float](repeating: 0, count: Self.bandCount)
-        _previousLevels = _levels
         _lastCallback = 0
         _heardSignal = false
         lock.unlock()
@@ -277,7 +270,7 @@ final class AudioLevelMonitor {
 
         while ring.count >= fftSize {
             analyse(Array(ring.prefix(fftSize)))
-            ring.removeFirst(fftSize) // no overlap, like the iPhone (~12 analyses/s)
+            ring.removeFirst(hopSize)
         }
     }
 
@@ -326,10 +319,7 @@ final class AudioLevelMonitor {
         }
 
         lock.lock()
-        _previousLevels = _levels
         _levels = out
-        _levelsTime = CFAbsoluteTimeGetCurrent()
-        _hopDuration = Double(fftSize) / sampleRate
         lock.unlock()
     }
 
@@ -407,7 +397,7 @@ class AudioSpectrum: NSView {
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
     // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
-    // redraw at 30 Hz. Live levels arrive already interpolated from AudioLevelMonitor.
+    // redraw at 30 Hz.
     private static let widthRatio: CGFloat = 0.106
     private static let pitchRatio: CGFloat = 0.167
     private static let updateInterval: TimeInterval = 1.0 / 30.0
