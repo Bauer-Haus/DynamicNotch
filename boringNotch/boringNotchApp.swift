@@ -185,7 +185,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.alphaValue = 1
     }
 
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Unit tests run inside the app; they only need the code, not the notch windows.
+        if Self.isRunningTests { return }
+
         // Start tracking display sleep now, so it's known even if music starts while asleep.
         _ = ScreenActivity.shared
 
