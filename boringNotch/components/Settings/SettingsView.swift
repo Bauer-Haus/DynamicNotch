@@ -10,7 +10,6 @@ import Defaults
 import LaunchAtLogin
 import Sparkle
 import SwiftUI
-import SwiftUIIntrospect
 
 struct SettingsView: View {
     @State private var selectedTab = "General"
