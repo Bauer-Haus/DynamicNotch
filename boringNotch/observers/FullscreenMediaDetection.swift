@@ -55,19 +55,24 @@ final class FullscreenMediaDetector: ObservableObject {
         
         for space in spaces {
             guard let uuid = space.screenUUID else { continue }
-            switch option {
-            case .always:
-                newStatus[uuid] = true
-            case .nowPlayingOnly:
-                // Only hide when the full-screen app is the one playing music.
-                newStatus[uuid] = musicSourceBundle.map { space.runningApps.contains($0) } ?? false
-            case .never:
-                newStatus[uuid] = false
-            }
+            newStatus[uuid] = Self.shouldHide(option: option, fullscreenApps: space.runningApps, musicSource: musicSourceBundle)
         }
         
         if newStatus != fullscreenStatus {
             fullscreenStatus = newStatus
+        }
+    }
+
+    /// Whether the closed notch hides on a screen showing these full-screen apps.
+    nonisolated static func shouldHide(option: HideNotchOption, fullscreenApps: [String], musicSource: String?) -> Bool {
+        switch option {
+        case .always:
+            return true
+        case .nowPlayingOnly:
+            // Only when the full-screen app is the one playing music.
+            return musicSource.map { fullscreenApps.contains($0) } ?? false
+        case .never:
+            return false
         }
     }
 }

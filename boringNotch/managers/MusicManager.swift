@@ -432,9 +432,31 @@ class MusicManager: ObservableObject {
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.setValue("boringNotch (https://github.com/Bauer-Haus/boring.notch)", forHTTPHeaderField: "User-Agent")
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let results = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
+        // LRCLIB is sometimes briefly overloaded (503) or rate-limits (429): try once more.
+        for attempt in 0 ..< 2 {
+            if attempt > 0 {
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            guard !Task.isCancelled else { return ("", []) }
+            let reply = try? await URLSession.shared.data(for: request)
+            let status = (reply?.1 as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200, let data = reply?.0 {
+                return lyrics(fromSearchResults: data, duration: duration)
+            }
+            guard Self.isWorthRetrying(status: status) else { break }
+        }
+        return ("", [])
+    }
+
+    /// No reply (network error, timeout), rate limiting or a server error.
+    static func isWorthRetrying(status: Int) -> Bool {
+        status == 0 || status == 429 || (500 ..< 600).contains(status)
+    }
+
+    /// Picks the LRCLIB search result whose length matches the playing track, preferring
+    /// one with timed lines, and returns its plain and timed lyrics.
+    static func lyrics(fromSearchResults data: Data, duration: Double) -> (plain: String, synced: [(time: Double, text: String)]) {
+        guard let results = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
               !results.isEmpty
         else { return ("", []) }
 
@@ -460,7 +482,7 @@ class MusicManager: ObservableObject {
     /// Matches one LRC timestamp: [m:ss], [mm:ss.xx] or [mm:ss.xxx].
     private static let lrcTimestamp = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]"#)
 
-    private static func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
+    static func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
         var result: [(time: Double, text: String)] = []
         for lineSub in lrc.split(whereSeparator: \.isNewline) {
             let nsLine = String(lineSub) as NSString
@@ -483,20 +505,25 @@ class MusicManager: ObservableObject {
 
     func lyricLine(at elapsed: Double) -> String {
         guard !syncedLyrics.isEmpty else { return currentLyrics }
-        // Binary search for last line with time <= elapsed
+        return Self.line(in: syncedLyrics, at: elapsed)
+    }
+
+    /// The line being sung at `elapsed`: the last one starting at or before it (the first
+    /// line before the song reaches it). `lines` must be sorted by time and not empty.
+    static func line(in lines: [(time: Double, text: String)], at elapsed: Double) -> String {
         var low = 0
-        var high = syncedLyrics.count - 1
+        var high = lines.count - 1
         var idx = 0
         while low <= high {
             let mid = (low + high) / 2
-            if syncedLyrics[mid].time <= elapsed {
+            if lines[mid].time <= elapsed {
                 idx = mid
                 low = mid + 1
             } else {
                 high = mid - 1
             }
         }
-        return syncedLyrics[idx].text
+        return lines[idx].text
     }
 
     private func triggerFlipAnimation() {

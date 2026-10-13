@@ -548,12 +548,12 @@ class AudioSpectrum: NSView {
     /// Starting the tap (and waking Bluetooth output) takes a moment, longest for the first
     /// song of the day. Rest as dots meanwhile; only fall back to the random animation if no
     /// audio has arrived by then (permission denied).
-    private static let randomFallbackDelay: TimeInterval = 3
+    static let randomFallbackDelay: TimeInterval = 3
     /// Smoothing time constants for live levels. Compared frame by frame with the iPhone
     /// Dynamic Island on a synthetic music track: even 40 ms scores 0.089 / corr 0.91 on
     /// held-back audio, near the best fit (80/50 ms, 0.085) with less delay (50 vs 83 ms).
-    private static let riseTime: Double = 0.040
-    private static let fallTime: Double = 0.040
+    static let riseTime: Double = 0.040
+    static let fallTime: Double = 0.040
 
     var bundleID: String? {
         didSet {
@@ -711,18 +711,15 @@ class AudioSpectrum: NSView {
             // Exponential smoothing, the same up and down: bars glide like the iPhone's
             // instead of twitching between analyses (~50 ms to half height on a hit).
             let dt = min(0.1, max(0, now - lastTick))
-            let rise = 1 - CGFloat(exp(-dt / Self.riseTime))
-            let fall = 1 - CGFloat(exp(-dt / Self.fallTime))
             for i in levels.indices where i < live.count {
-                let target = CGFloat(live[i])
-                levels[i] += (target - levels[i]) * (target > levels[i] ? rise : fall)
+                levels[i] = Self.smoothed(levels[i], toward: CGFloat(live[i]), dt: dt)
                 targets[i] = levels[i]
             }
             lastTick = now
             applyLevels()
             return
         } else {
-            if heardLive || now - waitingSince < Self.randomFallbackDelay {
+            if Self.restsAsDots(heardLive: heardLive, waitingFor: now - waitingSince) {
                 // Starting up, or a brief gap (track change, tap reconnecting): rest as dots.
                 for i in targets.indices { targets[i] = 0 }
             } else if now - lastRandomTick >= Self.randomInterval {
@@ -740,6 +737,18 @@ class AudioSpectrum: NSView {
             levels[i] += max(-Self.maxStep, min(Self.maxStep, targets[i] - levels[i]))
         }
         applyLevels()
+    }
+
+    /// One frame of exponential smoothing towards `target` after `dt` seconds.
+    static func smoothed(_ level: CGFloat, toward target: CGFloat, dt: Double) -> CGFloat {
+        let time = target > level ? riseTime : fallTime
+        return level + (target - level) * (1 - CGFloat(exp(-dt / time)))
+    }
+
+    /// While live audio is starting (or after it has been heard) the bars rest as dots;
+    /// the random animation is only for audio that never arrives (permission denied).
+    static func restsAsDots(heardLive: Bool, waitingFor elapsed: TimeInterval) -> Bool {
+        heardLive || elapsed < randomFallbackDelay
     }
 
     func setPlaying(_ playing: Bool) {
