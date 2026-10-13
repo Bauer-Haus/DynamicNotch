@@ -50,11 +50,10 @@ struct ContentView: View {
         )
     }
 
-    /// Width of the visualizer slot on the right of the closed notch. 6 bars (2pt wide, 2pt gap)
-    /// need 22pt; the slot is otherwise the album-art square, and the bars are as tall as the art.
+    /// Width of the visualizer slot on the right of the closed notch: the album-art square.
+    /// The bars are as tall as the art and, at Apple's proportions, ~0.94 of that wide.
     private var visualizerWidth: CGFloat {
-        let square = max(0, vm.effectiveClosedNotchHeight - 12)
-        return useMusicVisualizer ? max(square, 24) : square
+        max(0, vm.effectiveClosedNotchHeight - 12)
     }
 
     private var computedChinWidth: CGFloat {

@@ -23,8 +23,9 @@ final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
     static let bandCount = 6
-    /// Band edges in Hz (bandCount + 1 values), log-spaced from bass to treble.
-    private static let bandEdges: [Float] = [60, 150, 350, 800, 1800, 4000, 10000]
+    /// Band edges in Hz (bandCount + 1 values), measured from the iPhone Dynamic Island
+    /// with test tones: nothing above ~10 kHz moves it.
+    private static let bandEdges: [Float] = [30, 100, 190, 570, 1850, 5000, 10000]
     /// Where a band sits when it is at its own recent average (0...1).
     private static let restLevel: Float = 0.4
     /// dB above a band's recent average needed to reach the top.
@@ -390,8 +391,8 @@ final class AudioLevelMonitor {
 
 class AudioSpectrum: NSView {
     private var barLayers: [CALayer] = []
-    /// Displayed height of each bar as a fraction of the view height.
-    private var heights: [CGFloat] = []
+    /// Level of each bar, 0 (a dot) ... 1 (full height).
+    private var levels: [CGFloat] = []
     private var targets: [CGFloat] = []
     private var isPlaying: Bool = false
     private var animationTimer: Timer?
@@ -399,11 +400,14 @@ class AudioSpectrum: NSView {
     private var lastRetry: CFAbsoluteTime = 0
     private var holdsMonitor = false
 
-    private let barWidth: CGFloat = 2
-    private let barSpacing: CGFloat = 2
-    private let minHeight: CGFloat = 0.3
-    private let randomInterval: TimeInterval = 0.3
-    private let frameInterval: TimeInterval = 1.0 / 60.0
+    // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
+    // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots,
+    // update at 30 Hz and move ~0.2 of their range per update in either direction.
+    private static let widthRatio: CGFloat = 0.106
+    private static let pitchRatio: CGFloat = 0.167
+    private static let updateInterval: TimeInterval = 1.0 / 30.0
+    private static let maxStep: CGFloat = 0.21
+    private static let randomInterval: TimeInterval = 0.3
 
     var bundleID: String? {
         didSet {
@@ -428,41 +432,39 @@ class AudioSpectrum: NSView {
         if holdsMonitor { AudioLevelMonitor.shared.release() }
     }
 
-    override var intrinsicContentSize: NSSize {
-        let count = CGFloat(AudioLevelMonitor.bandCount)
-        return NSSize(width: count * barWidth + (count - 1) * barSpacing, height: NSView.noIntrinsicMetric)
-    }
-
     private func setupBars() {
         for _ in 0 ..< AudioLevelMonitor.bandCount {
             let bar = CALayer()
             bar.backgroundColor = NSColor.white.cgColor
-            bar.cornerRadius = barWidth / 2
             barLayers.append(bar)
-            heights.append(minHeight)
-            targets.append(minHeight)
+            levels.append(0)
+            targets.append(0)
             layer?.addSublayer(bar)
         }
     }
 
     override func layout() {
         super.layout()
-        applyHeights()
+        applyLevels()
     }
 
-    /// Bars are centred in the view and grow up and down from the middle, keeping
-    /// their rounded ends (bounds change, not a scale transform).
-    private func applyHeights() {
+    /// Bars are centred and grow up and down from the middle, keeping their rounded
+    /// ends (bounds change, not a scale transform). Size follows the view height.
+    private func applyLevels() {
+        let maxHeight = bounds.height
+        let barWidth = max(1, maxHeight * Self.widthRatio)
+        let pitch = maxHeight * Self.pitchRatio
         let count = CGFloat(barLayers.count)
-        let totalWidth = count * barWidth + (count - 1) * barSpacing
+        let totalWidth = (count - 1) * pitch + barWidth
         let originX = (bounds.width - totalWidth) / 2
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (i, bar) in barLayers.enumerated() {
-            let h = max(barWidth, bounds.height * heights[i])
+            let h = barWidth + (maxHeight - barWidth) * levels[i]
+            bar.cornerRadius = barWidth / 2
             bar.frame = CGRect(
-                x: originX + CGFloat(i) * (barWidth + barSpacing),
-                y: (bounds.height - h) / 2,
+                x: originX + CGFloat(i) * pitch,
+                y: (maxHeight - h) / 2,
                 width: barWidth,
                 height: h)
         }
@@ -475,7 +477,7 @@ class AudioSpectrum: NSView {
             holdsMonitor = true
             AudioLevelMonitor.shared.retain()
         }
-        let timer = Timer(timeInterval: frameInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: Self.updateInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -489,26 +491,26 @@ class AudioSpectrum: NSView {
             holdsMonitor = false
             AudioLevelMonitor.shared.release()
         }
-        for i in heights.indices {
-            heights[i] = minHeight
-            targets[i] = minHeight
+        for i in levels.indices {
+            levels[i] = 0
+            targets[i] = 0
         }
-        applyHeights()
+        applyLevels()
     }
 
     private func tick() {
         let now = CFAbsoluteTimeGetCurrent()
-        let (levels, isLive) = AudioLevelMonitor.shared.snapshot()
+        let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
-            for i in targets.indices where i < levels.count {
-                targets[i] = minHeight + (1 - minHeight) * CGFloat(levels[i])
+            for i in targets.indices where i < live.count {
+                targets[i] = CGFloat(live[i])
             }
         } else {
             // No real audio (yet): the original random animation.
-            if now - lastRandomTick >= randomInterval {
+            if now - lastRandomTick >= Self.randomInterval {
                 lastRandomTick = now
-                for i in targets.indices { targets[i] = .random(in: minHeight ... 1) }
+                for i in targets.indices { targets[i] = .random(in: 0.2 ... 1) }
             }
             if now - lastRetry >= 1 {
                 lastRetry = now
@@ -516,14 +518,11 @@ class AudioSpectrum: NSView {
             }
         }
 
-        // Fast rise, slower fall, like a level meter.
-        let rise: CGFloat = isLive ? 0.55 : 0.2
-        let fall: CGFloat = isLive ? 0.18 : 0.2
-        for i in heights.indices {
-            let k = targets[i] > heights[i] ? rise : fall
-            heights[i] += (targets[i] - heights[i]) * k
+        // Constant-speed slew, the same up and down (a full swing takes ~5 updates).
+        for i in levels.indices {
+            levels[i] += max(-Self.maxStep, min(Self.maxStep, targets[i] - levels[i]))
         }
-        applyHeights()
+        applyLevels()
     }
 
     func setPlaying(_ playing: Bool) {
