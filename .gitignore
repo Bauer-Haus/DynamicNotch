@@ -53,3 +53,6 @@ build/
 *.xcarchive
 *.dSYM
 
+
+# Local iPhone waveform test tracks and recordings
+iphone-band-test/
