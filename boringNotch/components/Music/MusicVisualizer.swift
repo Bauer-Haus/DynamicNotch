@@ -146,7 +146,13 @@ final class AudioLevelMonitor {
             self.lock.lock()
             let lastCallback = self._lastCallback
             self.lock.unlock()
-            let stalled = self.isRunning && now - max(lastCallback, self.startedAt) > 2
+            // A tap that delivered audio and then stopped is reconnected quickly. One that
+            // hasn't delivered yet is usually waiting on the system-audio permission dialog:
+            // rebuilding it would queue another request, so the dialog kept coming back after
+            // Allow. Give that case 30 s.
+            let delivered = lastCallback >= self.startedAt
+            let stalled = self.isRunning
+                && (delivered ? now - lastCallback > 2 : now - self.startedAt > 30)
             let betterTarget = self.isRunning && self.tappedBundleID == nil && self.targetBundleID != nil
                 && !Self.processObjects(forBundleID: self.targetBundleID!).isEmpty
             if stalled || betterTarget { self.teardown() }
@@ -498,12 +504,13 @@ class AudioSpectrum: NSView {
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
     // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
-    // redraw at 30 Hz. We redraw at 60 Hz for less lag.
+    // redraw at 30 Hz, and so do we.
     private static let widthRatio: CGFloat = 0.106
     private static let pitchRatio: CGFloat = 0.167
-    private static let updateInterval: TimeInterval = 1.0 / 60.0
-    /// Glide speed for the random fallback animation (fraction of range per update).
-    private static let maxStep: CGFloat = 0.105
+    private static let updateInterval: TimeInterval = 1.0 / 30.0
+    /// Glide speed for the random fallback animation (fraction of range per update),
+    /// tuned at 60 Hz and scaled so it moves at the same speed at any frame rate.
+    private static let maxStep: CGFloat = 0.105 * CGFloat(updateInterval * 60)
     private static let randomInterval: TimeInterval = 0.3
     /// Smoothing time constants for live levels. Compared frame by frame with the iPhone
     /// Dynamic Island on a synthetic music track: even 40 ms scores 0.089 / corr 0.91 on
