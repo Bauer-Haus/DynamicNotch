@@ -293,14 +293,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func deviceHasNotch() -> Bool {
-        if #available(macOS 12.0, *) {
-            for screen in NSScreen.screens {
-                if screen.safeAreaInsets.top > 0 {
-                    return true
-                }
-            }
-        }
-        return false
+        NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
     }
 
     @objc func screenConfigurationDidChange() {
@@ -452,15 +445,3 @@ extension Notification.Name {
     static let automaticallySwitchDisplayChanged = Notification.Name("automaticallySwitchDisplayChanged")
 }
 
-extension CGRect: @retroactive Hashable {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(origin.x)
-        hasher.combine(origin.y)
-        hasher.combine(size.width)
-        hasher.combine(size.height)
-    }
-
-    public static func == (lhs: CGRect, rhs: CGRect) -> Bool {
-        return lhs.origin == rhs.origin && lhs.size == rhs.size
-    }
-}

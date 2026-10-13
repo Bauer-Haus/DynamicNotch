@@ -6,8 +6,8 @@
 //
 //  The bars follow the real audio of the now-playing app (via a Core Audio
 //  process tap + FFT). If that app's audio can't be found the tap listens to all
-//  system output instead. If no audio arrives at all (permission denied, macOS
-//  older than 14.2) the original random animation is used as a fallback.
+//  system output instead. If no audio arrives at all (permission denied) the
+//  original random animation is used as a fallback.
 //
 import Accelerate
 import AppKit
@@ -158,8 +158,6 @@ final class AudioLevelMonitor {
 
     private func startLocked() {
         guard !isRunning, users > 0 else { return }
-        // Process taps need macOS 14.2+; older systems keep the random animation.
-        guard #available(macOS 14.2, *) else { return }
 
         // Prefer the now-playing app; otherwise listen to everything we output except ourselves.
         let processes = targetBundleID.map { Self.processObjects(forBundleID: $0) } ?? []
@@ -267,7 +265,7 @@ final class AudioLevelMonitor {
             }
             AudioHardwareDestroyAggregateDevice(aggregateID)
         }
-        if tapID != kAudioObjectUnknown, #available(macOS 14.2, *) {
+        if tapID != kAudioObjectUnknown {
             AudioHardwareDestroyProcessTap(tapID)
         }
         if let fftSetup { vDSP_destroy_fftsetup(fftSetup) }
