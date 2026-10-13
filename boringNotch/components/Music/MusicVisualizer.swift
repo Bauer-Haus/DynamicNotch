@@ -24,8 +24,8 @@ import SwiftUI
 /// of test tones, tone volume steps and pink noise: a 4096-sample Hann FFT, each bar summing the FFT magnitudes in its band (lightly normalised
 /// by band width), mapped through a power curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to
 /// fill a bar. The iPhone analyses every 4096 samples and glides between results, which
-/// lags ~190 ms behind the sound; here the same window is analysed every 1024 samples
-/// (~21 ms) and shown directly, cutting the lag to ~70 ms with the same response.
+/// lags ~190 ms behind the sound; here the same window is analysed every 512 samples
+/// (~11 ms, so every 60 Hz frame has a fresh result) and shown directly.
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
@@ -43,7 +43,7 @@ final class AudioLevelMonitor {
 
     private let fftSize = 4096
     private let log2n: vDSP_Length = 12
-    private let hopSize = 1024
+    private let hopSize = 512
     private let queue = DispatchQueue(label: "boringNotch.audioLevelMonitor", qos: .userInteractive)
 
     private var tapID = AudioObjectID(kAudioObjectUnknown)
@@ -397,12 +397,12 @@ class AudioSpectrum: NSView {
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
     // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
-    // redraw at 30 Hz.
+    // redraw at 30 Hz. We redraw at 60 Hz for less lag.
     private static let widthRatio: CGFloat = 0.106
     private static let pitchRatio: CGFloat = 0.167
-    private static let updateInterval: TimeInterval = 1.0 / 30.0
+    private static let updateInterval: TimeInterval = 1.0 / 60.0
     /// Glide speed for the random fallback animation (fraction of range per update).
-    private static let maxStep: CGFloat = 0.21
+    private static let maxStep: CGFloat = 0.105
     private static let randomInterval: TimeInterval = 0.3
 
     var bundleID: String? {
