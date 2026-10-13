@@ -474,10 +474,11 @@ class AudioSpectrum: NSView {
     /// Glide speed for the random fallback animation (fraction of range per update).
     private static let maxStep: CGFloat = 0.105
     private static let randomInterval: TimeInterval = 0.3
-    /// Smoothing time constants for live levels, fitted frame by frame to the iPhone
-    /// Dynamic Island playing a synthetic music track (corr 0.91 on held-back audio).
-    private static let riseTime: Double = 0.080
-    private static let fallTime: Double = 0.050
+    /// Smoothing time constants for live levels. Compared frame by frame with the iPhone
+    /// Dynamic Island on a synthetic music track: even 40 ms scores 0.089 / corr 0.91 on
+    /// held-back audio, near the best fit (80/50 ms, 0.085) with less delay (50 vs 83 ms).
+    private static let riseTime: Double = 0.040
+    private static let fallTime: Double = 0.040
 
     var bundleID: String? {
         didSet {
@@ -604,8 +605,8 @@ class AudioSpectrum: NSView {
         let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
-            // Exponential smoothing with a slower rise than fall, as measured on the iPhone:
-            // bars ease up into hits and settle slightly faster (~83 ms to half height).
+            // Exponential smoothing, the same up and down: bars glide like the iPhone's
+            // instead of twitching between analyses (~50 ms to half height on a hit).
             let dt = min(0.1, max(0, now - lastTick))
             let rise = 1 - CGFloat(exp(-dt / Self.riseTime))
             let fall = 1 - CGFloat(exp(-dt / Self.fallTime))
