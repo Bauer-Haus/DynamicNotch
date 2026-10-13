@@ -162,15 +162,6 @@ extension Defaults.Keys {
     // Option key modifier behaviour for media keys
     static let optionKeyAction = Key<OptionKeyAction>("optionKeyAction", default: OptionKeyAction.openSettings)
     
-    // MARK: Shelf
-    static let boringShelf = Key<Bool>("boringShelf", default: true)
-    static let openShelfByDefault = Key<Bool>("openShelfByDefault", default: true)
-    static let shelfTapToOpen = Key<Bool>("shelfTapToOpen", default: true)
-    static let quickShareProvider = Key<String>("quickShareProvider", default: QuickShareProvider.defaultProvider.id)
-    static let copyOnDrag = Key<Bool>("copyOnDrag", default: false)
-    static let autoRemoveShelfItems = Key<Bool>("autoRemoveShelfItems", default: false)
-    static let expandedDragDetection = Key<Bool>("expandedDragDetection", default: true)
-    
     // MARK: Calendar
     static let calendarSelectionState = Key<CalendarSelectionState>("calendarSelectionState", default: .all)
     static let hideAllDayEvents = Key<Bool>("hideAllDayEvents", default: false)

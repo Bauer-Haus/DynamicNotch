@@ -12,20 +12,10 @@ struct BoringHeader: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @StateObject var tvm = ShelfStateViewModel.shared
     var body: some View {
         HStack(spacing: 0) {
-            HStack {
-                if (!tvm.isEmpty || coordinator.alwaysShowTabs) && Defaults[.boringShelf] {
-                    TabSelectionView()
-                } else if vm.notchState == .open {
-                    EmptyView()
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(vm.notchState == .closed ? 0 : 1)
-            .blur(radius: vm.notchState == .closed ? 20 : 0)
-            .zIndex(2)
+            Spacer()
+                .frame(maxWidth: .infinity)
 
             if vm.notchState == .open {
                 Rectangle()

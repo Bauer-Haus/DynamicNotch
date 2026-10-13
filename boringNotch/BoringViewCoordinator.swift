@@ -50,7 +50,6 @@ struct ExpandedItem {
 class BoringViewCoordinator: ObservableObject {
     static let shared = BoringViewCoordinator()
 
-    @Published var currentView: NotchViews = .home
     @Published var helloAnimationRunning: Bool = false
     private var sneakPeekDispatch: DispatchWorkItem?
     private var expandingViewDispatch: DispatchWorkItem?
@@ -61,24 +60,7 @@ class BoringViewCoordinator: ObservableObject {
     @AppStorage("musicLiveActivityEnabled") var musicLiveActivityEnabled: Bool = true
     @AppStorage("currentMicStatus") var currentMicStatus: Bool = true
 
-    @AppStorage("alwaysShowTabs") var alwaysShowTabs: Bool = true {
-        didSet {
-            if !alwaysShowTabs {
-                openLastTabByDefault = false
-                if ShelfStateViewModel.shared.isEmpty || !Defaults[.openShelfByDefault] {
-                    currentView = .home
-                }
-            }
-        }
-    }
 
-    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = false {
-        didSet {
-            if openLastTabByDefault {
-                alwaysShowTabs = true
-            }
-        }
-    }
     
     @Default(.hudReplacement) var hudReplacement: Bool
     
@@ -294,7 +276,4 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
     
-    func showEmpty() {
-        currentView = .home
-    }
 }

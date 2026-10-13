@@ -24,21 +24,7 @@ public enum NotchState {
     case open
 }
 
-public enum NotchViews {
-    case home
-    case shelf
-}
 
-enum SettingsEnum {
-    case general
-    case about
-    case charge
-    case download
-    case mediaPlayback
-    case hud
-    case shelf
-    case extensions
-}
 
 enum DownloadIndicatorStyle: String, Defaults.Serializable {
     case progress = "Progress"

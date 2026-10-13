@@ -19,11 +19,6 @@ class BoringViewModel: NSObject, ObservableObject {
     @Published var contentType: ContentType = .normal
     @Published private(set) var notchState: NotchState = .closed
 
-    @Published var dragDetectorTargeting: Bool = false
-    @Published var generalDropTargeting: Bool = false
-    @Published var dropZoneTargeting: Bool = false
-    @Published var dropEvent: Bool = false
-    @Published var anyDropZoneTargeting: Bool = false
     var cancellables: Set<AnyCancellable> = []
     
     @Published var hideOnClosed: Bool = true
@@ -59,13 +54,6 @@ class BoringViewModel: NSObject, ObservableObject {
         notchSize = getClosedNotchSize(screenUUID: screenUUID)
         closedNotchSize = notchSize
 
-        Publishers.CombineLatest3($dropZoneTargeting, $dragDetectorTargeting, $generalDropTargeting)
-            .map { shelf, drag, general in
-                shelf || drag || general
-            }
-            .assign(to: \.anyDropZoneTargeting, on: self)
-            .store(in: &cancellables)
-        
         setupDetectorObserver()
     }
     
@@ -198,24 +186,12 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func close() {
-        // Do not close while a share picker or sharing service is active
-        if SharingStateManager.shared.preventNotchClose {
-            return
-        }
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
         self.isBatteryPopoverActive = false
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
-
-        // Set the current view to shelf if it contains files and the user enables openShelfByDefault
-        // Otherwise, if the user has not enabled openLastShelfByDefault, set the view to home
-    if !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
-            coordinator.currentView = .shelf
-        } else if !coordinator.openLastTabByDefault {
-            coordinator.currentView = .home
-        }
     }
 
     func closeHello() {
