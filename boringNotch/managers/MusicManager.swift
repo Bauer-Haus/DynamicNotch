@@ -59,6 +59,9 @@ class MusicManager: ObservableObject {
     @Published var isFavoriteTrack: Bool = false
 
     private var artworkData: Data? = nil
+    /// Shows the app icon if a new track's artwork doesn't arrive within `artworkWait`.
+    private var appIconFallback: Task<Void, Never>?
+    static let artworkWait: TimeInterval = 1.5
 
     // Store last values at the time artwork was changed
     private var lastArtworkTitle: String = "I'm Handsome"
@@ -222,10 +225,17 @@ class MusicManager: ObservableObject {
             self.triggerFlipAnimation()
 
             if artworkChanged, let artwork = state.artwork {
+                appIconFallback?.cancel()
                 self.updateArtwork(artwork)
             } else if state.artwork == nil {
-                // Try to use app icon if no artwork but track changed
-                if let appIconImage = AppIconAsNSImage(for: state.bundleIdentifier) {
+                // A new track's artwork often arrives a moment after its title (stations take
+                // ~0.1-0.5 s). Keep the current art briefly; use the app icon only if none comes.
+                appIconFallback?.cancel()
+                let bundleID = state.bundleIdentifier
+                appIconFallback = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(Self.artworkWait))
+                    guard let self, !Task.isCancelled, self.artworkData == nil,
+                          let appIconImage = AppIconAsNSImage(for: bundleID) else { return }
                     self.usingAppIconForArtwork = true
                     self.updateAlbumArt(newAlbumArt: appIconImage)
                 }

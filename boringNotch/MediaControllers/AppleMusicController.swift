@@ -32,6 +32,7 @@ class AppleMusicController: MediaControllerProtocol {
     /// Artwork is only fetched when the track changes; it can be megabytes per transfer.
     private var artworkTrackID: String?
     private var artworkData: Data?
+    private var artworkRetryTask: Task<Void, Never>?
 
     // MARK: - Initialization
     init() {
@@ -150,7 +151,18 @@ class AppleMusicController: MediaControllerProtocol {
         let trackID = descriptor.atIndex(10)?.stringValue ?? ""
         if trackID != artworkTrackID {
             artworkTrackID = trackID
-            artworkData = trackID.isEmpty ? nil : await fetchArtwork()
+            artworkRetryTask?.cancel()
+            let previous = artworkData
+            let fresh = trackID.isEmpty ? nil : await fetchArtwork(title: updatedState.title)
+            if let fresh, fresh != previous {
+                artworkData = fresh
+            } else if !trackID.isEmpty {
+                // On stations Music still has the previous song's artwork (or none) when the
+                // track changes. Keep showing what we have and look again until it updates.
+                retryArtwork(for: trackID, title: updatedState.title, previous: previous, latest: fresh)
+            } else {
+                artworkData = nil
+            }
         }
         updatedState.artwork = artworkData
         let lovedState = descriptor.atIndex(11)?.booleanValue ?? false
@@ -200,7 +212,43 @@ class AppleMusicController: MediaControllerProtocol {
         return try await AppleScriptHelper.execute(script)
     }
 
-    private func fetchArtwork() async -> Data? {
+    /// Delays before each new look at a station track's artwork (about 8 s in all).
+    static let artworkRetryDelays: [Double] = [0.5, 1, 1.5, 2, 3]
+
+    private func retryArtwork(for trackID: String, title: String, previous: Data?, latest: Data?) {
+        artworkRetryTask = Task { [weak self] in
+            var latest = latest
+            for delay in Self.artworkRetryDelays {
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self, !Task.isCancelled, self.artworkTrackID == trackID else { return }
+                latest = await self.fetchArtwork(title: title)
+                if let latest, latest != previous {
+                    self.publishArtwork(latest)
+                    return
+                }
+            }
+            // Never changed: consecutive songs from the same album really share artwork.
+            guard let self, !Task.isCancelled, self.artworkTrackID == trackID else { return }
+            self.publishArtwork(latest)
+        }
+    }
+
+    private func publishArtwork(_ data: Data?) {
+        artworkData = data
+        var state = playbackState
+        state.artwork = data
+        state.lastUpdated = Date()
+        playbackState = state
+    }
+
+    /// The current track's artwork. Station (radio) tracks have none in Music's scripting
+    /// interface, so for those it comes from macOS's Now Playing info instead.
+    private func fetchArtwork(title: String) async -> Data? {
+        if let data = await scriptArtwork() { return data }
+        return await Self.nowPlayingArtwork(title: title)
+    }
+
+    private func scriptArtwork() async -> Data? {
         let script = """
         tell application "Music"
             try
@@ -212,5 +260,51 @@ class AppleMusicController: MediaControllerProtocol {
         """
         guard let data = try? await AppleScriptHelper.execute(script)?.data, !data.isEmpty else { return nil }
         return data
+    }
+
+    // MARK: - Now Playing artwork (stations)
+
+    /// Asks macOS's Now Playing info for Music's artwork, through the same helper the Now
+    /// Playing source uses. Only accepted if it belongs to `title`, so a cover that hasn't
+    /// caught up with a song change is never shown for the wrong song.
+    static func nowPlayingArtwork(title: String) async -> Data? {
+        guard let script = Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl"),
+              let framework = Bundle.main.privateFrameworksPath?.appending("/MediaRemoteAdapter.framework")
+        else { return nil }
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+                process.arguments = [script.path, framework, "get"]
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = FileHandle.nullDevice
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                // Never wait on a stuck helper for long.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+                    if process.isRunning { process.terminate() }
+                }
+                let output = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                continuation.resume(returning: artwork(fromNowPlayingJSON: output, title: title))
+            }
+        }
+    }
+
+    /// Music's artwork from the Now Playing helper's `get` output, if it is for `title`.
+    static func artwork(fromNowPlayingJSON data: Data, title: String) -> Data? {
+        guard let info = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              info["bundleIdentifier"] as? String == "com.apple.Music",
+              info["title"] as? String == title,
+              let encoded = info["artworkData"] as? String,
+              let artwork = Data(base64Encoded: encoded.trimmingCharacters(in: .whitespacesAndNewlines)),
+              !artwork.isEmpty
+        else { return nil }
+        return artwork
     }
 }

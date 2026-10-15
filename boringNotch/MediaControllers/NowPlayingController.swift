@@ -293,8 +293,9 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
             newPlaybackState.artwork = Data(
                 base64Encoded: artworkDataString.trimmingCharacters(in: .whitespacesAndNewlines)
             )
-        } else if !diff {
-            newPlaybackState.artwork = nil
+        } else if diff {
+            // A partial update without artwork leaves it unchanged.
+            newPlaybackState.artwork = self.playbackState.artwork
         }
 
         if let dateString = payload.timestamp,
