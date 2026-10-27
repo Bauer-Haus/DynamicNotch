@@ -17,8 +17,8 @@ struct DynamicNotchApp: App {
     @Environment(\.openWindow) var openWindow
 
     var body: some Scene {
-        // A screen with a notch, drawn on a 15 x 10 pixel grid; a template image, so macOS
-        // tints it to match the menu bar.
+        // A screen with a notch (18 x 12 pt, 1.5 pt lines like Apple's menu bar icons); a
+        // template image, so macOS tints it to match the menu bar.
         MenuBarExtra("boring.notch", image: "menubar", isInserted: $showMenuBarIcon) {
             Button("Settings") {
                 DispatchQueue.main.async {
