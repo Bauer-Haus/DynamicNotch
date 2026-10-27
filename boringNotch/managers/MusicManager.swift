@@ -94,6 +94,15 @@ class MusicManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Switching the slider to "Album art" needs the current song's colour straight away.
+        Defaults.publisher(.sliderColor, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                guard let self, change.newValue == .albumArt else { return }
+                self.calculateAverageColor()
+            }
+            .store(in: &cancellables)
+
         // Initialize deprecation check asynchronously
         Task { @MainActor in
             do {
@@ -300,7 +309,10 @@ class MusicManager: ObservableObject {
             self.volume = state.volume
         }
         
-        self.timestampDate = state.lastUpdated
+        // Every published change redraws the notch, so only publish real changes.
+        if state.lastUpdated != self.timestampDate {
+            self.timestampDate = state.lastUpdated
+        }
     }
 
     func toggleFavoriteTrack() {
@@ -592,9 +604,10 @@ class MusicManager: ObservableObject {
         }
     }
 
-    /// The album-art colour tints the visualizer, the player text and optionally the slider.
+    /// The album art's average colour is only used by the "Album art" slider colour (the
+    /// visualizer uses the blurred art instead), so it is only worked out for that.
     private var usesAverageColor: Bool {
-        Defaults[.coloredSpectrogram] || Defaults[.sliderColor] == .albumArt
+        Defaults[.sliderColor] == .albumArt
     }
 
     // MARK: - Playback Position Estimation
