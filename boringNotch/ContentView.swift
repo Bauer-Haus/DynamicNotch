@@ -26,7 +26,6 @@ struct ContentView: View {
 
     @Namespace var albumArtNamespace
 
-    @Default(.useMusicVisualizer) var useMusicVisualizer
     @Default(.enableGestures) var enableGestures
     @Default(.closeGestureEnabled) var closeGestureEnabled
     @Default(.mediaSwipeGestures) var mediaSwipeGestures
@@ -63,8 +62,7 @@ struct ContentView: View {
     private var computedChinWidth: CGFloat {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
-        if (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
-            && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
+        if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
         {
             chinWidth += (max(0, vm.effectiveClosedNotchHeight - 12) + visualizerWidth + 20)
@@ -193,7 +191,7 @@ struct ContentView: View {
     func NotchLayout() -> some View {
         VStack(alignment: .leading) {
             VStack(alignment: .leading) {
-                if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
+                if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                     MusicLiveActivity()
                         .frame(alignment: .center)
                 } else if vm.notchState == .open {
@@ -203,23 +201,6 @@ struct ContentView: View {
                 } else {
                     Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                 }
-
-                if coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music
-                    && vm.notchState == .closed && !vm.hideOnClosed && Defaults[.sneakPeekStyles] == .standard
-                {
-                    HStack(alignment: .center) {
-                        Image(systemName: "music.note")
-                        GeometryReader { geo in
-                            MarqueeText(.constant(musicManager.songTitle + " - " + musicManager.artistName),  textColor: .gray, minDuration: 1, frameWidth: geo.size.width)
-                        }
-                    }
-                    .foregroundStyle(.gray)
-                    .padding(.bottom, 10)
-                }
-            }
-            .conditionalModifier(coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music && vm.notchState == .closed && !vm.hideOnClosed && Defaults[.sneakPeekStyles] == .standard) { view in
-                view
-                    .fixedSize()
             }
             .zIndex(2)
             if vm.notchState == .open {
@@ -255,72 +236,24 @@ struct ContentView: View {
 
             Rectangle()
                 .fill(.black)
-                .overlay(
-                    HStack(alignment: .top) {
-                        if coordinator.expandingView.show
-                            && coordinator.expandingView.type == .music
-                        {
-                            MarqueeText(
-                                .constant(musicManager.songTitle),
-                                textColor: Defaults[.coloredSpectrogram]
-                                    ? Color(nsColor: musicManager.avgColor) : Color.gray,
-                                minDuration: 0.4,
-                                frameWidth: 100
-                            )
-                            .opacity(
-                                (coordinator.expandingView.show
-                                    && Defaults[.sneakPeekStyles] == .inline)
-                                    ? 1 : 0
-                            )
-                            Spacer(minLength: vm.closedNotchSize.width)
-                            // Song Artist
-                            Text(musicManager.artistName)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .foregroundStyle(
-                                    Defaults[.coloredSpectrogram]
-                                        ? Color(nsColor: musicManager.avgColor)
-                                        : Color.gray
-                                )
-                                .opacity(
-                                    (coordinator.expandingView.show
-                                        && coordinator.expandingView.type == .music
-                                        && Defaults[.sneakPeekStyles] == .inline)
-                                        ? 1 : 0
-                                )
-                        }
-                    }
-                )
-                .frame(
-                    width: (coordinator.expandingView.show
-                        && coordinator.expandingView.type == .music
-                        && Defaults[.sneakPeekStyles] == .inline)
-                        ? 380
-                        : vm.closedNotchSize.width
-                            + -cornerRadiusInsets.closed.top
-                )
+                .frame(width: vm.closedNotchSize.width + -cornerRadiusInsets.closed.top)
 
             HStack {
-                if useMusicVisualizer {
-                    // Like the iPhone: the bars are windows onto blurred album art.
-                    Group {
-                        if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
-                            Image(nsImage: backdrop)
-                                .resizable()
-                                .interpolation(.high)
-                        } else {
-                            Rectangle().fill(Color.gray.gradient)
-                        }
+                // Like the iPhone: the bars are windows onto blurred album art.
+                Group {
+                    if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
+                        Image(nsImage: backdrop)
+                            .resizable()
+                            .interpolation(.high)
+                    } else {
+                        Rectangle().fill(Color.gray.gradient)
                     }
-                    .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
-                    .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                        .mask {
-                            AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
-                                .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
-                        }
-                } else {
-                    LottieAnimationContainer()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
+                .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                .mask {
+                    AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
+                        .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
                 }
             }
             .frame(
@@ -364,7 +297,6 @@ struct ContentView: View {
             }
             
             guard vm.notchState == .closed,
-                  !coordinator.sneakPeek.show,
                   Defaults[.openNotchOnHover] else { return }
             
             hoverTask = Task {
@@ -373,8 +305,7 @@ struct ContentView: View {
                 
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
-                          self.isHovering,
-                          !self.coordinator.sneakPeek.show else { return }
+                          self.isHovering else { return }
                     
                     self.doOpen()
                 }

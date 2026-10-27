@@ -14,6 +14,7 @@ let defaultImage: NSImage = .init(
     accessibilityDescription: "Album Art"
 )!
 
+@MainActor
 class MusicManager: ObservableObject {
     // MARK: - Properties
     static let shared = MusicManager()
@@ -50,7 +51,6 @@ class MusicManager: ObservableObject {
     @Published var repeatMode: RepeatMode = .off
     @Published var volume: Double = 0.5
     @Published var volumeControlSupported: Bool = true
-    @ObservedObject var coordinator = BoringViewCoordinator.shared
     @Published var usingAppIconForArtwork: Bool = false
     @Published var currentLyrics: String = ""
     @Published var isFetchingLyrics: Bool = false
@@ -61,7 +61,7 @@ class MusicManager: ObservableObject {
     private var artworkData: Data? = nil
     /// Shows the app icon if a new track's artwork doesn't arrive within `artworkWait`.
     private var appIconFallback: Task<Void, Never>?
-    static let artworkWait: TimeInterval = 1.5
+    nonisolated static let artworkWait: TimeInterval = 1.5
 
     // Store last values at the time artwork was changed
     private var lastArtworkTitle: String = "I'm Handsome"
@@ -109,10 +109,8 @@ class MusicManager: ObservableObject {
         }
     }
 
-    deinit {
-        destroy()
-    }
-    
+    // No deinit: `shared` lives as long as the app, and its subscriptions cancel themselves
+    // if it is ever released. `destroy()` is for tearing down explicitly.
     public func destroy() {
         debounceIdleTask?.cancel()
         lyricsTask?.cancel()
@@ -204,10 +202,6 @@ class MusicManager: ObservableObject {
                 self.isPlaying = state.isPlaying
                 self.updateIdleState(state: state.isPlaying)
             }
-
-            if state.isPlaying && !state.title.isEmpty && !state.artist.isEmpty {
-                self.updateSneakPeek()
-            }
         }
 
         // Check for changes in track metadata using last artwork change values
@@ -248,11 +242,6 @@ class MusicManager: ObservableObject {
                 self.lastArtworkArtist = state.artist
                 self.lastArtworkAlbum = state.album
                 self.lastArtworkBundleIdentifier = state.bundleIdentifier
-            }
-
-            // Only update sneak peek if there's actual content and something changed
-            if !state.title.isEmpty && !state.artist.isEmpty && state.isPlaying {
-                self.updateSneakPeek()
             }
 
             // Fetch lyrics on content change
@@ -409,7 +398,7 @@ class MusicManager: ObservableObject {
         }
     }
 
-    private static func appleMusicLyrics() async -> String {
+    nonisolated private static func appleMusicLyrics() async -> String {
         let script = """
         tell application "Music"
             try
@@ -425,7 +414,7 @@ class MusicManager: ObservableObject {
         return result?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    private static func normalizedQuery(_ string: String) -> String {
+    nonisolated private static func normalizedQuery(_ string: String) -> String {
         string
             .folding(options: .diacriticInsensitive, locale: .current)
             .replacingOccurrences(of: "\u{FFFD}", with: "")
@@ -433,7 +422,7 @@ class MusicManager: ObservableObject {
 
     /// Looks the track up on LRCLIB (free, no account). Picks the result whose length
     /// matches the playing track, preferring one with timed lines.
-    private static func webLyrics(title: String, artist: String, duration: Double) async -> (plain: String, synced: [(time: Double, text: String)]) {
+    nonisolated private static func webLyrics(title: String, artist: String, duration: Double) async -> (plain: String, synced: [(time: Double, text: String)]) {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
         // URLQueryItem encodes "&", "+" and "#" in titles, which plain percent-encoding misses.
         components.queryItems = [
@@ -461,13 +450,13 @@ class MusicManager: ObservableObject {
     }
 
     /// No reply (network error, timeout), rate limiting or a server error.
-    static func isWorthRetrying(status: Int) -> Bool {
+    nonisolated static func isWorthRetrying(status: Int) -> Bool {
         status == 0 || status == 429 || (500 ..< 600).contains(status)
     }
 
     /// Picks the LRCLIB search result whose length matches the playing track, preferring
     /// one with timed lines, and returns its plain and timed lyrics.
-    static func lyrics(fromSearchResults data: Data, duration: Double) -> (plain: String, synced: [(time: Double, text: String)]) {
+    nonisolated static func lyrics(fromSearchResults data: Data, duration: Double) -> (plain: String, synced: [(time: Double, text: String)]) {
         guard let results = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
               !results.isEmpty
         else { return ("", []) }
@@ -492,9 +481,9 @@ class MusicManager: ObservableObject {
 
     // MARK: - Synced lyrics helpers
     /// Matches one LRC timestamp: [m:ss], [mm:ss.xx] or [mm:ss.xxx].
-    private static let lrcTimestamp = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]"#)
+    nonisolated private static let lrcTimestamp = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]"#)
 
-    static func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
+    nonisolated static func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
         var result: [(time: Double, text: String)] = []
         for lineSub in lrc.split(whereSeparator: \.isNewline) {
             let nsLine = String(lineSub) as NSString
@@ -522,7 +511,7 @@ class MusicManager: ObservableObject {
 
     /// The line being sung at `elapsed`: the last one starting at or before it (the first
     /// line before the song reaches it). `lines` must be sorted by time and not empty.
-    static func line(in lines: [(time: Double, text: String)], at elapsed: Double) -> String {
+    nonisolated static func line(in lines: [(time: Double, text: String)], at elapsed: Double) -> String {
         var low = 0
         var high = lines.count - 1
         var idx = 0
@@ -623,16 +612,6 @@ class MusicManager: ObservableObject {
                 withAnimation(.smooth) {
                     self?.avgColor = color ?? .white
                 }
-            }
-        }
-    }
-
-    private func updateSneakPeek() {
-        if isPlaying && Defaults[.enableSneakPeek] {
-            if Defaults[.sneakPeekStyles] == .standard {
-                coordinator.toggleSneakPeek(status: true, type: .music)
-            } else {
-                coordinator.toggleExpandingView(status: true, type: .music)
             }
         }
     }

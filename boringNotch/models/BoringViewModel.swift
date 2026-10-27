@@ -136,7 +136,6 @@ class BoringViewModel: NSObject, ObservableObject {
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
-        self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
     }
 
