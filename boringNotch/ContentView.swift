@@ -111,7 +111,9 @@ struct ContentView: View {
                     )
                 
                 mainLayout
-                    .frame(height: vm.notchState == .open ? vm.notchSize.height : nil)
+                    // Top-aligned: content taller than this frame used to be centred, which pushed the
+                    // open notch ~7 pt above the screen and hid its top corners.
+                    .frame(height: vm.notchState == .open ? vm.notchSize.height : nil, alignment: .top)
                     .conditionalModifier(true) { view in
                         // Same slight bounce as before, settling in ~0.25 s instead of ~0.33 s.
                         let openAnimation = Animation.spring(response: 0.32, dampingFraction: 0.8, blendDuration: 0)
@@ -197,7 +199,8 @@ struct ContentView: View {
 
     @ViewBuilder
     func NotchLayout() -> some View {
-        VStack(alignment: .leading) {
+        // No default 8 pt gap between the space under the camera and the player.
+        VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading) {
                 if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                     MusicLiveActivity()
