@@ -90,7 +90,9 @@ struct ContentView: View {
                         ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
                         : cornerRadiusInsets.closed.bottom
                     )
-                    .padding([.horizontal, .bottom], vm.notchState == .open ? 12 : 0)
+                    // Open: the iPhone island's margins (28 pt at the sides, 24 pt below).
+                    .padding(.horizontal, vm.notchState == .open ? 28 : 0)
+                    .padding(.bottom, vm.notchState == .open ? 24 : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
                     .overlay(alignment: .top) {
@@ -201,9 +203,9 @@ struct ContentView: View {
                     MusicLiveActivity()
                         .frame(alignment: .center)
                 } else if vm.notchState == .open {
-                    BoringHeader()
+                    // The open player starts below the menu bar (or the camera housing).
+                    Color.clear
                         .frame(height: max(24, vm.effectiveClosedNotchHeight))
-                        .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
                 } else {
                     Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                 }
@@ -246,21 +248,8 @@ struct ContentView: View {
 
             HStack {
                 // Like the iPhone: the bars are windows onto blurred album art.
-                Group {
-                    if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
-                        Image(nsImage: backdrop)
-                            .resizable()
-                            .interpolation(.high)
-                    } else {
-                        Rectangle().fill(Color.gray.gradient)
-                    }
-                }
-                .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
-                .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                .mask {
-                    AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
-                        .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
-                }
+                AlbumWaveform(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
+                    .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
             }
             .frame(
                 width: max(

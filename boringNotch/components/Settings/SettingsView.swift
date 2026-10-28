@@ -450,15 +450,6 @@ struct Appearance: View {
     var body: some View {
         Form {
             Section {
-                Defaults.Toggle(key: .settingsIconInNotch) {
-                    Text("Show settings icon in notch")
-                }
-
-            } header: {
-                Text("General")
-            }
-
-            Section {
                 Defaults.Toggle(key: .coloredSpectrogram) {
                     Text("Colored spectrogram")
                 }

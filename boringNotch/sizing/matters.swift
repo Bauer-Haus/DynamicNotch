@@ -12,13 +12,15 @@ import SwiftUI
 let downloadSneakSize: CGSize = .init(width: 65, height: 1)
 
 let shadowPadding: CGFloat = 20
-let openNotchSize: CGSize = .init(width: 640, height: 190)
+/// Shaped like the iPhone's expanded Dynamic Island (about 2:1): 540 pt wide plus the
+/// 14 pt flares where the notch meets the top edge.
+let openNotchSize: CGSize = .init(width: 568, height: 266)
 let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 14, bottom: 52), closed: (top: 6, bottom: 14))
 
 enum MusicPlayerImageSizes {
-    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 13.0, closed: 4.0)
-    static let size = (opened: CGSize(width: 90, height: 90), closed: CGSize(width: 20, height: 20))
+    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 17.0, closed: 4.0)
+    static let size = (opened: CGSize(width: 86, height: 86), closed: CGSize(width: 20, height: 20))
 }
 
 /// The screen the notch is on: the one with this UUID, or the main screen if none is given.

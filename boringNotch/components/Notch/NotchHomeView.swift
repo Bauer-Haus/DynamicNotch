@@ -6,6 +6,7 @@
 //  Modified by Harsh Vardhan Goswami & Richard Kunkli & Mustafa Ramadan
 //
 
+import AVKit
 import Combine
 import Defaults
 import SwiftUI
@@ -17,9 +18,54 @@ struct MusicPlayerView: View {
     let albumArtNamespace: Namespace.ID
 
     var body: some View {
-        HStack {
-            AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace).padding(.all, 5)
-            MusicControlsView().drawingGroup().compositingGroup()
+        // Laid out like the iPhone's expanded Dynamic Island: cover, song and live waveform
+        // on top, a full-width progress bar, then a full-width row of controls.
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
+                AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace)
+                    .frame(width: MusicPlayerImageSizes.size.opened.width,
+                           height: MusicPlayerImageSizes.size.opened.height)
+                SongInfoView()
+                    .padding(.leading, 27)
+                    .drawingGroup()
+                    .compositingGroup()
+                AlbumWaveform(width: 35, height: 28)
+                    .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.leading, 12)
+            }
+            .frame(height: MusicPlayerImageSizes.size.opened.height)
+
+            PlaybackProgressView()
+                .padding(.top, 26)
+
+            MusicControlsView()
+                .padding(.top, 18)
+        }
+    }
+}
+
+/// The live waveform with the blurred album art showing through its bars, as on the
+/// iPhone. Used in the closed notch and in the open player.
+struct AlbumWaveform: View {
+    @ObservedObject var musicManager = MusicManager.shared
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        Group {
+            if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
+                Image(nsImage: backdrop)
+                    .resizable()
+                    .interpolation(.high)
+            } else {
+                Rectangle().fill(Color.gray.gradient)
+            }
+        }
+        .frame(width: width, height: height)
+        .mask {
+            AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
+                .frame(width: width, height: height)
         }
     }
 }
@@ -38,10 +84,7 @@ struct AlbumArtView: View {
             Button {
                 musicManager.openMusicApp()
             } label: {
-                ZStack(alignment:.bottomTrailing) {
-                    albumArtImage
-                    appIconOverlay
-                }
+                albumArtImage
             }
             .buttonStyle(PlainButtonStyle())
             .scaleEffect(musicManager.isPlaying ? 1 : 0.85)
@@ -70,104 +113,78 @@ struct AlbumArtView: View {
                 RoundedRectangle(
                     cornerRadius: Defaults[.cornerRadiusScaling]
                         ? MusicPlayerImageSizes.cornerRadiusInset.opened
-                        : MusicPlayerImageSizes.cornerRadiusInset.closed)
+                        : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                    style: .continuous)
             )
     }
+}
 
-    @ViewBuilder
-    private var appIconOverlay: some View {
-        if vm.notchState == .open && !musicManager.usingAppIconForArtwork {
-            AppIcon(for: musicManager.bundleIdentifier ?? "com.apple.Music")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 30, height: 30)
-                .offset(x: 10, y: 10)
-                .transition(.scale.combined(with: .opacity))
-                .zIndex(2)
+/// Title, artist and (if on) the current lyric line, beside the cover.
+struct SongInfoView: View {
+    @ObservedObject var musicManager = MusicManager.shared
+    @Default(.enableLyrics) private var enableLyrics
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            VStack(alignment: .leading, spacing: 2) {
+                MarqueeText(
+                    $musicManager.songTitle,
+                    font: .system(size: 24, weight: .semibold), nsFont: .title1,
+                    textColor: .white, frameWidth: width)
+                MarqueeText(
+                    $musicManager.artistName,
+                    font: .system(size: 24), nsFont: .title1,
+                    textColor: .gray, frameWidth: width)
+                if enableLyrics {
+                    // Only timed lyrics change during a song; otherwise nothing needs redrawing.
+                    TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.syncedLyrics.isEmpty)) { timeline in
+                        let currentElapsed: Double = {
+                            guard musicManager.isPlaying else { return musicManager.elapsedTime }
+                            let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
+                            let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
+                            return min(max(progressed, 0), musicManager.songDuration)
+                        }()
+                        let line: String = {
+                            if musicManager.isFetchingLyrics { return "Loading lyrics…" }
+                            if !musicManager.syncedLyrics.isEmpty {
+                                return musicManager.lyricLine(at: currentElapsed)
+                            }
+                            let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+                            return trimmed.isEmpty ? "No lyrics found" : trimmed.replacingOccurrences(of: "\n", with: " ")
+                        }()
+                        let isPersian = line.unicodeScalars.contains { scalar in
+                            let v = scalar.value
+                            return v >= 0x0600 && v <= 0x06FF
+                        }
+                        MarqueeText(
+                            .constant(line),
+                            font: .subheadline,
+                            nsFont: .subheadline,
+                            textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
+                            frameWidth: width
+                        )
+                        .font(isPersian ? .custom("Vazirmatn-Regular", size: NSFont.preferredFont(forTextStyle: .subheadline).pointSize) : .subheadline)
+                        .lineLimit(1)
+                        .opacity(musicManager.isPlaying ? 1 : 0)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
         }
     }
 }
 
-struct MusicControlsView: View {
+/// Elapsed time, a full-width progress bar and the time remaining, like the iPhone.
+struct PlaybackProgressView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @State private var sliderValue: Double = 0
     @State private var dragging: Bool = false
     @State private var lastDragged: Date = .distantPast
-    @Default(.musicControlSlots) private var slotConfig
-    @Default(.musicControlSlotLimit) private var slotLimit
-    @Default(.enableLyrics) private var enableLyrics
 
     var body: some View {
-        VStack(alignment: .leading) {
-            songInfoAndSlider
-            slotToolbar
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    private var songInfoAndSlider: some View {
-        GeometryReader { geo in
-            VStack(alignment: .leading, spacing: 4) {
-                songInfo(width: geo.size.width)
-                musicSlider
-            }
-        }
-        .padding(.top, 10)
-        .padding(.leading, 5)
-    }
-
-    private func songInfo(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MarqueeText(
-                $musicManager.songTitle, font: .headline, nsFont: .headline, textColor: .white,
-                frameWidth: width)
-            MarqueeText(
-                $musicManager.artistName,
-                font: .headline,
-                nsFont: .headline,
-                textColor: .gray,
-                frameWidth: width
-            )
-            .fontWeight(.medium)
-            if enableLyrics {
-                // Only timed lyrics change during a song; otherwise nothing needs redrawing.
-                TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.syncedLyrics.isEmpty)) { timeline in
-                    let currentElapsed: Double = {
-                        guard musicManager.isPlaying else { return musicManager.elapsedTime }
-                        let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
-                        let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
-                        return min(max(progressed, 0), musicManager.songDuration)
-                    }()
-                    let line: String = {
-                        if musicManager.isFetchingLyrics { return "Loading lyrics…" }
-                        if !musicManager.syncedLyrics.isEmpty {
-                            return musicManager.lyricLine(at: currentElapsed)
-                        }
-                        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? "No lyrics found" : trimmed.replacingOccurrences(of: "\n", with: " ")
-                    }()
-                    let isPersian = line.unicodeScalars.contains { scalar in
-                        let v = scalar.value
-                        return v >= 0x0600 && v <= 0x06FF
-                    }
-                    MarqueeText(
-                        .constant(line),
-                        font: .subheadline,
-                        nsFont: .subheadline,
-                        textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
-                        frameWidth: width
-                    )
-                    .font(isPersian ? .custom("Vazirmatn-Regular", size: NSFont.preferredFont(forTextStyle: .subheadline).pointSize) : .subheadline)
-                    .lineLimit(1)
-                    .opacity(musicManager.isPlaying ? 1 : 0)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-        }
-    }
-
-    private var musicSlider: some View {
-        // The bar moves ~1 pt per second and the label shows whole seconds, so twice a
+        // The bar moves ~1 pt per second and the labels show whole seconds, so twice a
         // second is enough; nothing redraws while paused.
         TimelineView(.animation(minimumInterval: 0.5, paused: !musicManager.isPlaying || musicManager.playbackRate == 0)) { timeline in
             MusicSliderView(
@@ -184,20 +201,27 @@ struct MusicControlsView: View {
             ) { newValue in
                 MusicManager.shared.seek(to: newValue)
             }
-            .padding(.top, 5)
-            .frame(height: 36)
         }
+        .frame(height: 20)
     }
+}
 
-    private var slotToolbar: some View {
+/// The row of controls across the open notch (the buttons are chosen in Settings).
+struct MusicControlsView: View {
+    @ObservedObject var musicManager = MusicManager.shared
+    @Default(.musicControlSlots) private var slotConfig
+    @Default(.musicControlSlotLimit) private var slotLimit
+
+    var body: some View {
         let slots = activeSlots
-        return HStack(spacing: 6) {
+        HStack(spacing: 0) {
             ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
+                if index > 0 { Spacer(minLength: 0) }
                 slotView(for: slot)
-                    .frame(alignment: .center)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 15)
+        .buttonStyle(PlainButtonStyle())
     }
 
     private var activeSlots: [MusicControlButton] {
@@ -213,23 +237,23 @@ struct MusicControlsView: View {
     private func slotView(for slot: MusicControlButton) -> some View {
         switch slot {
         case .shuffle:
-            HoverButton(icon: "shuffle", iconColor: musicManager.isShuffled ? .systemAccent : .primary, scale: .medium) {
+            HoverButton(icon: "shuffle", iconColor: musicManager.isShuffled ? .systemAccent : .primary, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.toggleShuffle()
             }
         case .previous:
-            HoverButton(icon: "backward.fill", scale: .medium) {
+            HoverButton(icon: "backward.fill", scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.previousTrack()
             }
         case .playPause:
-            HoverButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", scale: .large) {
+            HoverButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", scale: .large, pointSize: slot.pointSize) {
                 MusicManager.shared.togglePlay()
             }
         case .next:
-            HoverButton(icon: "forward.fill", scale: .medium) {
+            HoverButton(icon: "forward.fill", scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.nextTrack()
             }
         case .repeatMode:
-            HoverButton(icon: repeatIcon, iconColor: repeatIconColor, scale: .medium) {
+            HoverButton(icon: repeatIcon, iconColor: repeatIconColor, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.toggleRepeat()
             }
         case .volume:
@@ -237,15 +261,17 @@ struct MusicControlsView: View {
         case .favorite:
             FavoriteControlButton()
         case .goBackward:
-            HoverButton(icon: "gobackward.15", scale: .medium) {
+            HoverButton(icon: "gobackward.15", scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.skip(seconds: -15)
             }
         case .goForward:
-            HoverButton(icon: "goforward.15", scale: .medium) {
+            HoverButton(icon: "goforward.15", scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.skip(seconds: 15)
             }
+        case .output:
+            OutputPickerButton(size: slot.pointSize)
         case .none:
-            Color.clear.frame(height: 1)
+            Color.clear.frame(width: 44, height: 1)
         }
     }
 
@@ -274,7 +300,8 @@ struct FavoriteControlButton: View {
     @ObservedObject var musicManager = MusicManager.shared
 
     var body: some View {
-        HoverButton(icon: iconName, iconColor: iconColor, scale: .medium) {
+        HoverButton(icon: iconName, iconColor: iconColor, scale: .medium,
+                    pointSize: MusicControlButton.favorite.pointSize) {
             MusicManager.shared.toggleFavoriteTrack()
         }
         .disabled(!musicManager.canFavoriteTrack)
@@ -282,11 +309,11 @@ struct FavoriteControlButton: View {
     }
 
     private var iconName: String {
-        musicManager.isFavoriteTrack ? "heart.fill" : "heart"
+        musicManager.isFavoriteTrack ? "star.fill" : "star"
     }
 
     private var iconColor: Color {
-        musicManager.isFavoriteTrack ? .systemAccent : .primary
+        musicManager.isFavoriteTrack ? .systemAccent : .gray
     }
 }
 
@@ -429,7 +456,9 @@ struct MusicSliderView: View {
 
 
     var body: some View {
-        VStack {
+        HStack(spacing: 11) {
+            Text(timeString(from: sliderValue))
+                .monospacedDigit()
             CustomSlider(
                 value: $sliderValue,
                 range: 0...duration,
@@ -438,19 +467,15 @@ struct MusicSliderView: View {
                     : Defaults[.sliderColor] == SliderColorEnum.accent ? .effectiveAccent : .white,
                 dragging: $dragging,
                 lastDragged: $lastDragged,
-                onValueChange: onValueChange
+                onValueChange: onValueChange,
+                thickness: 8
             )
-            .frame(height: 10, alignment: .center)
-
-            HStack {
-                Text(timeString(from: sliderValue))
-                Spacer()
-                Text(timeString(from: duration))
-            }
-            .fontWeight(.medium)
-            .foregroundColor(.gray)
-            .font(.caption)
+            // Time left, as on the iPhone (-3:49).
+            Text("−" + timeString(from: max(0, duration - sliderValue)))
+                .monospacedDigit()
         }
+        .font(.system(size: 15, weight: .medium))
+        .foregroundColor(.gray)
         .onChange(of: currentDate) {
            guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
             sliderValue = MusicManager.shared.estimatedPlaybackPosition(at: currentDate)
@@ -484,11 +509,13 @@ struct CustomSlider: View {
     @Binding var lastDragged: Date
     var onValueChange: ((Double) -> Void)?
     var onDragChange: ((Double) -> Void)?
+    /// Bar thickness at rest; it grows by 4 pt while dragged.
+    var thickness: CGFloat = 5
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let height = CGFloat(dragging ? 9 : 5)
+            let height = dragging ? thickness + 4 : thickness
             let rangeSpan = range.upperBound - range.lowerBound
 
             let progress = rangeSpan == .zero ? 0 : (value - range.lowerBound) / rangeSpan
@@ -504,7 +531,7 @@ struct CustomSlider: View {
                     .frame(width: filledTrackWidth, height: height)
             }
             .cornerRadius(height / 2)
-            .frame(height: 10)
+            .frame(height: thickness + 5)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -525,4 +552,47 @@ struct CustomSlider: View {
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: dragging)
         }
     }
+}
+
+/// The output picker (AirPlay, speakers, headphones). macOS's picker draws a small fixed-size
+/// icon, so this shows an iPhone-sized icon and presses the (nearly invisible) picker behind it,
+/// which opens macOS's own output menu.
+struct OutputPickerButton: View {
+    let size: CGFloat
+    @State private var holder = RoutePickerHolder()
+
+    var body: some View {
+        HoverButton(icon: "airplay.audio", iconColor: .gray, scale: .medium, pointSize: size) {
+            holder.open()
+        }
+        .background(
+            RoutePickerHost(picker: holder.picker)
+                .frame(width: size, height: size)
+                .opacity(0.02)
+        )
+    }
+}
+
+final class RoutePickerHolder {
+    let picker: AVRoutePickerView = {
+        let picker = AVRoutePickerView()
+        picker.isRoutePickerButtonBordered = false
+        return picker
+    }()
+
+    /// Presses the picker's own button, which shows the output menu below it.
+    func open() {
+        func button(in view: NSView) -> NSButton? {
+            if let button = view as? NSButton { return button }
+            for sub in view.subviews { if let found = button(in: sub) { return found } }
+            return nil
+        }
+        button(in: picker)?.performClick(nil)
+    }
+}
+
+private struct RoutePickerHost: NSViewRepresentable {
+    let picker: AVRoutePickerView
+    func makeNSView(context: Context) -> AVRoutePickerView { picker }
+    func updateNSView(_ nsView: AVRoutePickerView, context: Context) {}
 }

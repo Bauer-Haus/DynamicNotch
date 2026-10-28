@@ -71,7 +71,6 @@ extension Defaults.Keys {
     
     // MARK: Appearance
     static let showEmojis = Key<Bool>("showEmojis", default: false)
-    static let settingsIconInNotch = Key<Bool>("settingsIconInNotch", default: true)
     static let enableShadow = Key<Bool>("enableShadow", default: true)
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
 

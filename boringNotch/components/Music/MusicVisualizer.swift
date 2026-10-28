@@ -189,6 +189,9 @@ final class AudioLevelMonitor {
     private var _levels = [Float](repeating: 0, count: bandCount)
     private var _lastCallback: CFAbsoluteTime = 0
     private var _heardSignal = false
+    /// Bumped on every release, so a delayed teardown can tell it has been superseded.
+    private var releaseGeneration = 0
+    static let releaseGrace: TimeInterval = 0.5
     /// Samples of real audio since the first sound, up to one analysis window. The tap
     /// starts with silence, and until a whole window of music has arrived the levels are
     /// computed partly from that silence (too low, or a jump on some bars).
@@ -248,7 +251,16 @@ final class AudioLevelMonitor {
         queue.async { [weak self] in
             guard let self else { return }
             self.users = max(0, self.users - 1)
-            if self.users == 0 { self.teardown() }
+            guard self.users == 0 else { return }
+            // Opening the notch swaps the closed waveform for the open player's: one view
+            // releases just before the other retains. Keep the tap briefly so the bars carry
+            // on instead of restarting from dots.
+            self.releaseGeneration += 1
+            let generation = self.releaseGeneration
+            self.queue.asyncAfter(deadline: .now() + Self.releaseGrace) { [weak self] in
+                guard let self, self.users == 0, generation == self.releaseGeneration else { return }
+                self.teardown()
+            }
         }
     }
 

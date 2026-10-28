@@ -12,12 +12,25 @@ struct HoverButton: View {
     var iconColor: Color = .primary
     var scale: Image.Scale = .medium
     var action: () -> Void
-    var contentTransition: ContentTransition = .symbolEffect;
+    var contentTransition: ContentTransition = .symbolEffect
+    /// An exact icon size (the open notch's controls); otherwise `scale` picks the size.
+    var pointSize: CGFloat? = nil
+
+    init(icon: String, iconColor: Color = .primary, scale: Image.Scale = .medium,
+         pointSize: CGFloat? = nil, contentTransition: ContentTransition = .symbolEffect,
+         action: @escaping () -> Void) {
+        self.icon = icon
+        self.iconColor = iconColor
+        self.scale = scale
+        self.pointSize = pointSize
+        self.contentTransition = contentTransition
+        self.action = action
+    }
     
     @State private var isHovering = false
 
     var body: some View {
-        let size = CGFloat(scale == .large ? 40 : 30)
+        let size = pointSize.map { max(30, $0 * 1.1) } ?? CGFloat(scale == .large ? 40 : 30)
         
         Button(action: action) {
             Rectangle()
@@ -32,7 +45,7 @@ struct HoverButton: View {
                             Image(systemName: icon)
                                 .foregroundColor(iconColor)
                                 .contentTransition(contentTransition)
-                                .font(scale == .large ? .largeTitle : .body)
+                                .font(pointSize.map { .system(size: $0) } ?? (scale == .large ? .largeTitle : .body))
                         }
                 }
         }
