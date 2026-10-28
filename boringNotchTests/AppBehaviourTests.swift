@@ -127,11 +127,18 @@ struct IslandHaloTests {
         #expect(IslandBackdrop.strength(atDistance: islandHaloMargin + 1) == 0)
     }
 
-    @Test func distanceIsMeasuredFromTheOpenIsland() {
+    @Test func distanceIsMeasuredFromTheVisibleIsland() {
+        let island = CGSize(width: 448, height: 218)
         let centreX = windowSize.width / 2
-        #expect(IslandBackdrop.distanceToIsland(CGPoint(x: centreX, y: 50)) == 0)
-        #expect(abs(IslandBackdrop.distanceToIsland(CGPoint(x: centreX, y: openNotchSize.height + 30)) - 30) < 0.001)
-        #expect(abs(IslandBackdrop.distanceToIsland(CGPoint(x: centreX + openNotchSize.width / 2 + 20, y: 10)) - 20) < 0.001)
+        let bodyHalfWidth = island.width / 2 - cornerRadiusInsets.opened.top
+        func distance(_ x: CGFloat, _ y: CGFloat) -> CGFloat {
+            IslandBackdrop.distanceToIsland(CGPoint(x: x, y: y), islandSize: island)
+        }
+        #expect(distance(centreX, 50) == 0)
+        #expect(abs(distance(centreX, island.height + 30) - 30) < 0.001)
+        // The sides are the shape's body, inside the top corners' room, not the frame's edge.
+        #expect(abs(distance(centreX + bodyHalfWidth + 20, 30) - 20) < 0.001)
+        #expect(distance(centreX + bodyHalfWidth - 1, 30) == 0)
     }
 
     @Test func windowLeavesRoomForTheHalo() {

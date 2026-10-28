@@ -140,18 +140,22 @@ struct NotchShape: Shape {
 /// fading out over `islandHaloMargin`. It fills the window, with the island at the top centre.
 struct IslandBackdrop: NSViewRepresentable {
     var visible: Bool
+    /// The open island's laid-out size, top corners included (as `NotchShape` is given it).
+    var islandSize: CGSize
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow // the most neutral: darkens the least of the materials (measured)
         view.blendingMode = .behindWindow
         view.state = .active
-        view.maskImage = Self.mask
+        view.maskImage = Self.mask(for: islandSize)
         view.alphaValue = 0
         return view
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        let mask = Self.mask(for: islandSize)
+        if view.maskImage !== mask { view.maskImage = mask }
         let target: CGFloat = visible ? 1 : 0
         guard view.alphaValue != target else { return }
         NSAnimationContext.runAnimationGroup { animation in
@@ -179,10 +183,11 @@ struct IslandBackdrop: NSViewRepresentable {
         return 0
     }
 
-    /// Distance (pt) from `point` to the open island, whose top edge is the top of the window.
-    /// Zero inside it. `point` is measured from the window's top-left corner.
-    static func distanceToIsland(_ point: CGPoint) -> CGFloat {
-        let width = openNotchSize.width, height = openNotchSize.height
+    /// Distance (pt) from `point` to the visible island, zero inside it. `point` is measured
+    /// from the window's top-left corner; the island hangs from the top centre. Its body is
+    /// `islandSize` less the top corners, which curve outwards only in its top few points.
+    static func distanceToIsland(_ point: CGPoint, islandSize: CGSize) -> CGFloat {
+        let width = islandSize.width - 2 * cornerRadiusInsets.opened.top, height = islandSize.height
         let radius = cornerRadiusInsets.opened.bottom
         let center = CGPoint(x: windowSize.width / 2, y: height / 2)
         // Only the bottom corners are round; the top edge meets the screen edge.
@@ -193,26 +198,30 @@ struct IslandBackdrop: NSViewRepresentable {
         return max(0, outside + min(max(qx, qy), 0) - r)
     }
 
-    /// The fade, as an alpha mask the size of the window.
-    static let mask: NSImage = {
+    @MainActor private static var maskCache: (size: CGSize, image: NSImage)?
+
+    /// The fade, as an alpha mask the size of the window. Made once per island size.
+    @MainActor static func mask(for islandSize: CGSize) -> NSImage {
+        if let cached = maskCache, cached.size == islandSize { return cached.image }
         let scale = 2
         let width = Int(windowSize.width) * scale, height = Int(windowSize.height) * scale
         var alpha = [UInt8](repeating: 0, count: width * height)
         for y in 0..<height {
             for x in 0..<width {
                 let point = CGPoint(x: (CGFloat(x) + 0.5) / CGFloat(scale), y: (CGFloat(y) + 0.5) / CGFloat(scale))
-                let distance = distanceToIsland(point)
-                // Under the island itself it's hidden anyway; keep it full so its edge has no seam.
-                let value = distance == 0 ? 1 : strength(atDistance: distance)
+                // Under the island it's hidden; the edge's strength carries on there so no seam shows.
+                let value = strength(atDistance: distanceToIsland(point, islandSize: islandSize))
                 alpha[y * width + x] = UInt8((value * 255).rounded())
             }
         }
-        let image = alpha.withUnsafeMutableBytes { bytes -> CGImage? in
+        let cgImage = alpha.withUnsafeMutableBytes { bytes -> CGImage? in
             CGContext(
                 data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8,
                 bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue
             )?.makeImage()
         }
-        return image.map { NSImage(cgImage: $0, size: windowSize) } ?? NSImage(size: windowSize)
-    }()
+        let image = cgImage.map { NSImage(cgImage: $0, size: windowSize) } ?? NSImage(size: windowSize)
+        maskCache = (islandSize, image)
+        return image
+    }
 }

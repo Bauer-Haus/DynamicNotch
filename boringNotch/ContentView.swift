@@ -31,6 +31,8 @@ struct ContentView: View {
     @Default(.mediaSwipeGestures) var mediaSwipeGestures
     /// One track change per swipe, however far it goes.
     @State private var mediaSwipeHandled = false
+    /// The open island's laid-out size, for the blur around it.
+    @State private var openIslandSize: CGSize = openNotchSize
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
@@ -80,7 +82,7 @@ struct ContentView: View {
         }()
         
         ZStack(alignment: .top) {
-            IslandBackdrop(visible: vm.notchState == .open && Defaults[.enableShadow])
+            IslandBackdrop(visible: vm.notchState == .open && Defaults[.enableShadow], islandSize: openIslandSize)
                 .frame(width: windowSize.width, height: windowSize.height)
                 .allowsHitTesting(false)
             VStack(spacing: 0) {
@@ -98,6 +100,11 @@ struct ContentView: View {
                     .padding(.bottom, vm.notchState == .open ? 24 * openPlayerScale : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
+                    // The blur behind follows the island's real size (its content sets the height).
+                    // Layout jumps straight to the final size, so this fires once per open, not per frame.
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                        if vm.notchState == .open { openIslandSize = size }
+                    }
                     .overlay(alignment: .top) {
                         Rectangle()
                             .fill(.black)
