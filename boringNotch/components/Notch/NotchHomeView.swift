@@ -190,7 +190,6 @@ struct PlaybackProgressView: View {
                 sliderValue: $sliderValue,
                 duration: $musicManager.songDuration,
                 lastDragged: $lastDragged,
-                color: musicManager.avgColor,
                 dragging: $dragging,
                 currentDate: timeline.date,
                 timestampDate: musicManager.timestampDate,
@@ -460,7 +459,6 @@ struct MusicSliderView: View {
     @Binding var sliderValue: Double
     @Binding var duration: Double
     @Binding var lastDragged: Date
-    var color: NSColor
     @Binding var dragging: Bool
     let currentDate: Date
     let timestampDate: Date
@@ -477,9 +475,8 @@ struct MusicSliderView: View {
             CustomSlider(
                 value: $sliderValue,
                 range: 0...duration,
-                color: Defaults[.sliderColor] == SliderColorEnum.albumArt
-                    ? Color(nsColor: color).ensureMinimumBrightness(factor: 0.8)
-                    : Defaults[.sliderColor] == SliderColorEnum.accent ? .effectiveAccent : .white,
+                // The played part is the same grey as the times either side of it.
+                color: .gray,
                 dragging: $dragging,
                 lastDragged: $lastDragged,
                 onValueChange: onValueChange,

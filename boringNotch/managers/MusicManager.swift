@@ -45,7 +45,6 @@ class MusicManager: ObservableObject {
     @Published var album: String = "Self Love"
     @Published var isPlayerIdle: Bool = true
     @Published var animations: BoringAnimations = .init()
-    @Published var avgColor: NSColor = .white
     /// Blurred album art the visualizer bars show through (nil until the first art loads).
     @Published var visualizerBackdrop: NSImage?
     @Published var bundleIdentifier: String? = nil
@@ -144,15 +143,6 @@ class MusicManager: ObservableObject {
                 // Before anything has played the title is a placeholder, not a real song.
                 guard let self, self.bundleIdentifier != nil else { return }
                 self.fetchLyricsIfAvailable(bundleIdentifier: self.bundleIdentifier, title: self.songTitle, artist: self.artistName, duration: self.songDuration, force: true)
-            }
-            .store(in: &cancellables)
-
-        // Switching the slider to "Album art" needs the current song's colour straight away.
-        Defaults.publisher(.sliderColor, options: [])
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] change in
-                guard let self, change.newValue == .albumArt else { return }
-                self.calculateAverageColor()
             }
             .store(in: &cancellables)
 
@@ -668,9 +658,6 @@ class MusicManager: ObservableObject {
         withAnimation(.smooth) {
             self.albumArt = newAlbumArt
             self.displayedAlbumArt = displayed
-            if usesAverageColor {
-                self.calculateAverageColor()
-            }
         }
         newAlbumArt.visualizerBackdrop { [weak self] image in
             guard let self, self.albumArt === newAlbumArt else { return }
@@ -680,12 +667,6 @@ class MusicManager: ObservableObject {
         }
     }
 
-    /// The album art's average colour is only used by the "Album art" slider colour (the
-    /// visualizer uses the blurred art instead), so it is only worked out for that.
-    private var usesAverageColor: Bool {
-        Defaults[.sliderColor] == .albumArt
-    }
-
     // MARK: - Playback Position Estimation
     public func estimatedPlaybackPosition(at date: Date = Date()) -> TimeInterval {
         guard isPlaying else { return min(elapsedTime, songDuration) }
@@ -693,16 +674,6 @@ class MusicManager: ObservableObject {
         let timeDifference = date.timeIntervalSince(timestampDate)
         let estimated = elapsedTime + (timeDifference * playbackRate)
         return min(max(0, estimated), songDuration)
-    }
-
-    func calculateAverageColor() {
-        albumArt.averageColor { [weak self] color in
-            DispatchQueue.main.async {
-                withAnimation(.smooth) {
-                    self?.avgColor = color ?? .white
-                }
-            }
-        }
     }
 
     // MARK: - Public Methods for controlling playback

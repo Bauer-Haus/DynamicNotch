@@ -445,18 +445,12 @@ struct About: View {
 
 struct Appearance: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @Default(.sliderColor) var sliderColor
 
     var body: some View {
         Form {
             Section {
                 Defaults.Toggle(key: .coloredSpectrogram) {
                     Text("Colored spectrogram")
-                }
-                Picker("Slider color", selection: $sliderColor) {
-                    ForEach(SliderColorEnum.allCases, id: \.self) { option in
-                        Text(option.rawValue)
-                    }
                 }
             } header: {
                 Text("Media")

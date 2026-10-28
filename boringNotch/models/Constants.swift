@@ -75,10 +75,6 @@ extension Defaults.Keys {
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
 
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
-    static let sliderColor = Key<SliderColorEnum>(
-        "sliderUseAlbumArtColor",
-        default: SliderColorEnum.white
-    )
     
     // MARK: Gestures
     static let enableGestures = Key<Bool>("enableGestures", default: true)
