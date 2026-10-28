@@ -5,7 +5,7 @@
 //  Created by Alexander on 2025-03-29.
 //
 
-import Foundation
+import AppKit
 
 class AppleScriptHelper {
     /// NSAppleScript isn't thread-safe, so every script runs on this one queue.
@@ -88,4 +88,68 @@ final class ResumeOnce: @unchecked Sendable {
         claimed = true
         return true
     }
+}
+
+/// The AppleScript the app sends to Music and Spotify, kept in one place so every media
+/// source sends exactly the same commands (a copy of the favourite script once broke
+/// while the other kept working).
+enum PlayerScript {
+    static let musicBundleID = "com.apple.Music"
+    static let spotifyBundleID = "com.spotify.client"
+
+    /// The scripting name of an app whose volume can be controlled, if any.
+    static func appName(forVolumeOf bundleID: String) -> String? {
+        switch bundleID {
+        case musicBundleID: return "Music"
+        case spotifyBundleID: return "Spotify"
+        default: return nil
+        }
+    }
+
+    static func isRunning(_ bundleID: String) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+    }
+
+    /// Volume as the whole percent the players take, dropping the fraction (45.7% -> 45).
+    /// The notch's click confirmation compares against this, so both must use it.
+    static func volumePercent(_ level: Double) -> Int {
+        Int(max(0, min(1, level)) * 100)
+    }
+
+    static func setVolume(_ level: Double, app: String) -> String {
+        "tell application \"\(app)\" to set sound volume to \(volumePercent(level))"
+    }
+
+    /// Returns the volume in percent, or 50 if the app isn't running.
+    static func getVolume(app: String) -> String {
+        """
+        tell application "\(app)"
+            if it is running then
+                get sound volume
+            else
+                return 50
+            end if
+        end tell
+        """
+    }
+
+    static func setMusicFavorite(_ favorite: Bool) -> String {
+        """
+        tell application "Music"
+            try
+                set favorited of current track to \(favorite ? "true" : "false")
+            end try
+        end tell
+        """
+    }
+
+    static let getMusicFavorite = """
+        tell application "Music"
+            try
+                return favorited of current track
+            on error
+                return false
+            end try
+        end tell
+        """
 }

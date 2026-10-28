@@ -36,18 +36,8 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     func setFavorite(_ favorite: Bool) async {
         let bundleID = playbackState.bundleIdentifier
         
-        if bundleID == "com.apple.Music" {
-            let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
-            if !runningApps.isEmpty {
-                let script = """
-                tell application "Music"
-                    try
-                        set favorited of current track to \(favorite ? "true" : "false")
-                    end try
-                end tell
-                """
-                try? await AppleScriptHelper.executeVoid(script)
-            }
+        if bundleID == PlayerScript.musicBundleID, PlayerScript.isRunning(bundleID) {
+            try? await AppleScriptHelper.executeVoid(PlayerScript.setMusicFavorite(favorite))
         }
         
         // Update the favorite state locally and fetch updated info
@@ -164,29 +154,12 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     }
     
     func setVolume(_ level: Double) async {
-        // MediaRemote framework doesn't provide direct volume control for the active audio session
-        // As a workaround, try to control the currently active music app directly
-        let clampedLevel = max(0.0, min(1.0, level))
-        let volumePercentage = Int(clampedLevel * 100)
-        
+        // MediaRemote can't set an app's volume, so script the playing app directly.
         let bundleID = playbackState.bundleIdentifier
-        if !bundleID.isEmpty {
-            if bundleID == "com.apple.Music" {
-                let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
-                if !runningApps.isEmpty {
-                    let script = "tell application \"Music\" to set sound volume to \(volumePercentage)"
-                    try? await AppleScriptHelper.executeVoid(script)
-                }
-            } else if bundleID == "com.spotify.client" {
-                let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client")
-                if !runningApps.isEmpty {
-                    let script = "tell application \"Spotify\" to set sound volume to \(volumePercentage)"
-                    try? await AppleScriptHelper.executeVoid(script)
-                }
-            }
+        if let app = PlayerScript.appName(forVolumeOf: bundleID), PlayerScript.isRunning(bundleID) {
+            try? await AppleScriptHelper.executeVoid(PlayerScript.setVolume(level, app: app))
         }
-        
-        playbackState.volume = clampedLevel
+        playbackState.volume = max(0, min(1, level))
     }
     
     // MARK: - Setup Methods
@@ -326,20 +299,9 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
      private func fetchFavoriteStateIfSupported() async {
          let bundleID = playbackState.bundleIdentifier
         
-         if bundleID == "com.apple.Music" {
-             let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
-             guard !runningApps.isEmpty else { return }
-             
-             let script = """
-             tell application "Music"
-                 try
-                     return favorited of current track
-                 on error
-                     return false
-                 end try
-             end tell
-             """
-             if let result = try? await AppleScriptHelper.execute(script) {
+         if bundleID == PlayerScript.musicBundleID {
+             guard PlayerScript.isRunning(bundleID) else { return }
+             if let result = try? await AppleScriptHelper.execute(PlayerScript.getMusicFavorite) {
                  var updated = self.playbackState
                  updated.isFavorite = result.booleanValue
                  self.playbackState = updated

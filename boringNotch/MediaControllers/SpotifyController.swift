@@ -85,10 +85,8 @@ class SpotifyController: MediaControllerProtocol {
     }
     
     func setVolume(_ level: Double) async {
-        let clampedLevel = max(0.0, min(1.0, level))
-        let volumePercentage = Int(clampedLevel * 100)
         // The notch already shows the new level; no status query after each slider step.
-        await executeCommand("set sound volume to \(volumePercentage)")
+        try? await AppleScriptHelper.executeVoid(PlayerScript.setVolume(level, app: "Spotify"))
     }
     
     func isActive() -> Bool {

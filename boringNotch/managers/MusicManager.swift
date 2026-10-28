@@ -794,8 +794,7 @@ class MusicManager: ObservableObject {
         guard let controller = activeController else { return }
         let clamped = max(0, min(1, level))
         volume = clamped
-        // Players are sent whole percent, dropping the fraction (45.7% -> 45).
-        pendingVolume = PendingValue(value: Int(clamped * 100),
+        pendingVolume = PendingValue(value: PlayerScript.volumePercent(clamped),
                                      until: Date().addingTimeInterval(Self.optimisticHold))
         scheduleConfirmationCheck()
         volumeTarget = clamped
@@ -841,38 +840,12 @@ class MusicManager: ObservableObject {
     
     
     func syncVolumeFromActiveApp() async {
-        // Check if bundle identifier is valid and if the app is actually running
-        guard let bundleID = bundleIdentifier, !bundleID.isEmpty,
-              NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == bundleID }) else { return }
-        
-        var script: String?
-        if bundleID == "com.apple.Music" {
-            script = """
-            tell application "Music"
-                if it is running then
-                    get sound volume
-                else
-                    return 50
-                end if
-            end tell
-            """
-        } else if bundleID == "com.spotify.client" {
-            script = """
-            tell application "Spotify"
-                if it is running then
-                    get sound volume
-                else
-                    return 50
-                end if
-            end tell
-            """
-        } else {
-            // For unsupported apps, don't sync volume
-            return
-        }
-        
-        if let volumeScript = script,
-           let result = try? await AppleScriptHelper.execute(volumeScript) {
+        guard let bundleID = bundleIdentifier,
+              let app = PlayerScript.appName(forVolumeOf: bundleID),
+              PlayerScript.isRunning(bundleID) else { return }
+        let script = PlayerScript.getVolume(app: app)
+
+        if let result = try? await AppleScriptHelper.execute(script) {
             let volumeValue = result.int32Value
             let currentVolume = Double(volumeValue) / 100.0
             

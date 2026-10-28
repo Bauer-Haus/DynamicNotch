@@ -109,9 +109,7 @@ class AppleMusicController: MediaControllerProtocol {
     func setVolume(_ level: Double) async {
         // The notch already shows the new level; a full status query after every step of a
         // slider drag only queued up behind other commands.
-        let clampedLevel = max(0.0, min(1.0, level))
-        let volumePercentage = Int(clampedLevel * 100)
-        await executeCommand("set sound volume to \(volumePercentage)")
+        try? await AppleScriptHelper.executeVoid(PlayerScript.setVolume(level, app: "Music"))
     }
     
     func isActive() -> Bool {
@@ -120,14 +118,7 @@ class AppleMusicController: MediaControllerProtocol {
     }
 
     func setFavorite(_ favorite: Bool) async {
-        let script = """
-        tell application \"Music\"
-            try
-                set favorited of current track to \(favorite ? "true" : "false")
-            end try
-        end tell
-        """
-        try? await AppleScriptHelper.executeVoid(script)
+        try? await AppleScriptHelper.executeVoid(PlayerScript.setMusicFavorite(favorite))
         try? await Task.sleep(for: .milliseconds(150))
         await updatePlaybackInfo()
     }
