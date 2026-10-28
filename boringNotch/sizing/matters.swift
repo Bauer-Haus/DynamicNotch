@@ -17,10 +17,15 @@ let shadowPadding: CGFloat = 20
 /// macOS's 13-17 pt interface text and covered ~38% of a 14" MacBook screen.
 let openPlayerScale: CGFloat = 0.8
 
-/// 540 x 266 pt at full scale, plus the flares where the notch meets the top edge.
-let openNotchSize: CGSize = .init(width: (540 + 2 * 14) * openPlayerScale, height: 266 * openPlayerScale)
+/// Where the notch meets the top of the screen its corners curve like the hardware notch's
+/// own corners: ~8 pt, measured from a photo of a 14" MacBook Pro (8.0 and 8.7 pt by two
+/// methods). Closed and open, so the corners don't change size as the notch opens.
+let notchTopCornerRadius: CGFloat = 8
+
+/// 540 x 266 pt at full scale, plus the top corners on each side.
+let openNotchSize: CGSize = .init(width: 540 * openPlayerScale + 2 * notchTopCornerRadius, height: 266 * openPlayerScale)
 let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 14 * openPlayerScale, bottom: 52 * openPlayerScale), closed: (top: 6, bottom: 14))
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: 52 * openPlayerScale), closed: (top: notchTopCornerRadius, bottom: 14))
 
 enum MusicPlayerImageSizes {
     static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 17 * openPlayerScale, closed: 4.0)

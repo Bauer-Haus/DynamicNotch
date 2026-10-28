@@ -43,14 +43,21 @@ struct NotchShape: Shape {
             )
         )
 
-        path.addQuadCurve(
+        // Top corners are true quarter circles (cubic, k = 0.5523), like the hardware notch's
+        // rounded corners; a quadratic curve only approximated one.
+        let k: CGFloat = 0.5523
+        path.addCurve(
             to: CGPoint(
                 x: rect.minX + topCornerRadius,
                 y: rect.minY + topCornerRadius
             ),
-            control: CGPoint(
-                x: rect.minX + topCornerRadius,
+            control1: CGPoint(
+                x: rect.minX + topCornerRadius * k,
                 y: rect.minY
+            ),
+            control2: CGPoint(
+                x: rect.minX + topCornerRadius,
+                y: rect.minY + topCornerRadius * (1 - k)
             )
         )
 
@@ -97,13 +104,17 @@ struct NotchShape: Shape {
             )
         )
 
-        path.addQuadCurve(
+        path.addCurve(
             to: CGPoint(
                 x: rect.maxX,
                 y: rect.minY
             ),
-            control: CGPoint(
+            control1: CGPoint(
                 x: rect.maxX - topCornerRadius,
+                y: rect.minY + topCornerRadius * (1 - k)
+            ),
+            control2: CGPoint(
+                x: rect.maxX - topCornerRadius * k,
                 y: rect.minY
             )
         )
