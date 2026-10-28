@@ -214,40 +214,29 @@ struct MusicControlsView: View {
     @Default(.musicControlSlotLimit) private var slotLimit
 
     var body: some View {
-        let slots = activeSlots
+        let slots = Self.shownSlots(slotConfig, limit: slotLimit)
+        let cell = Self.cellWidth(count: slots.count)
+        // Each control in an equal cell, centred: Apple's spacing for three, closer for more.
         HStack(spacing: 0) {
-            ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
-                if index > 0 { Spacer(minLength: 0) }
+            ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
                 slotView(for: slot)
+                    .frame(minWidth: cell, maxWidth: slot == .volume ? nil : cell)
             }
         }
-        .padding(.horizontal, OpenPlayer.controlsSideInset)
+        .frame(maxWidth: .infinity)
         .buttonStyle(PlainButtonStyle())
     }
 
-    private var activeSlots: [MusicControlButton] {
-        let sanitizedLimit = min(
-            max(slotLimit, MusicControlButton.minSlotCount),
-            MusicControlButton.maxSlotCount
-        )
-        let padded = slotConfig.padded(to: sanitizedLimit, filler: .none)
-        return Self.fillingEmptySlots(Array(padded.prefix(sanitizedLimit)))
+    /// The controls to show: the chosen slots, up to the limit, leaving out empty ones.
+    static func shownSlots(_ config: [MusicControlButton], limit: Int) -> [MusicControlButton] {
+        let limit = min(max(limit, MusicControlButton.minSlotCount), MusicControlButton.maxSlotCount)
+        return config.prefix(limit).filter { $0 != .none }
     }
 
-    /// Empty slots show the iPhone's button for that position (☆ on the left, AirPlay on
-    /// the right) unless it is already in another slot.
-    static func fillingEmptySlots(_ slots: [MusicControlButton]) -> [MusicControlButton] {
-        let defaults = MusicControlButton.defaultLayout
-        var result = slots
-        for (i, slot) in slots.enumerated() where slot == .none {
-            // Match from the nearer end, so a shorter row still gets ☆ first and AirPlay last.
-            let fromEnd = slots.count - 1 - i
-            let candidate = i <= fromEnd
-                ? defaults[min(i, defaults.count - 1)]
-                : defaults[max(0, defaults.count - 1 - fromEnd)]
-            if candidate != .none, !result.contains(candidate) { result[i] = candidate }
-        }
-        return result
+    /// Width of each control's cell: Apple's pitch, or less when more controls must fit.
+    static func cellWidth(count: Int) -> CGFloat {
+        let room = OpenPlayer.islandWidth - 2 * OpenPlayer.sideInset
+        return min(OpenPlayer.controlPitch, room / CGFloat(max(count, 1)))
     }
 
     @ViewBuilder
@@ -288,7 +277,7 @@ struct MusicControlsView: View {
         case .output:
             OutputPickerButton(size: slot.pointSize)
         case .none:
-            Color.clear.frame(width: 44, height: 1)
+            EmptyView()
         }
     }
 
@@ -331,13 +320,6 @@ struct FavoriteControlButton: View {
 
     private var iconColor: Color {
         musicManager.isFavoriteTrack ? .systemAccent : .gray
-    }
-}
-
-private extension Array where Element == MusicControlButton {
-    func padded(to length: Int, filler: MusicControlButton) -> [MusicControlButton] {
-        if count >= length { return self }
-        return self + Array(repeating: filler, count: length - count)
     }
 }
 

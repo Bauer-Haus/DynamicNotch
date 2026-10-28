@@ -93,7 +93,7 @@ extension Defaults.Keys {
     )
     static let musicControlSlotLimit = Key<Int>(
         "musicControlSlotLimit",
-        default: MusicControlButton.defaultLayout.count
+        default: MusicControlButton.maxSlotCount
     )
     
     // MARK: Fullscreen Media Detection

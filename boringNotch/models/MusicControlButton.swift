@@ -23,13 +23,14 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
 
     var id: String { rawValue }
 
-    /// The iPhone's expanded Dynamic Island: favourite, back, play/pause, forward, output.
+    /// Apple's MacBook Dynamic Island: back, play/pause, forward, with the outer two of the
+    /// five slots empty. (The iPhone also shows ☆ and AirPlay there; drag them in to add them.)
     static let defaultLayout: [MusicControlButton] = [
-        .favorite,
+        .none,
         .previous,
         .playPause,
         .next,
-        .output
+        .none
     ]
 
     static let minSlotCount: Int = 3

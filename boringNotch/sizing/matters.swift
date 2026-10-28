@@ -38,7 +38,8 @@ enum OpenPlayer {
     static let barDrop: CGFloat = 3.7
     /// The controls' centres are 105.6 pt below the top of the art.
     static let controlsTop: CGFloat = 9.9
-    static let controlsSideInset: CGFloat = 4
+    /// Centre to centre: Apple's three controls are 75.3 pt apart. More share the width.
+    static let controlPitch: CGFloat = 75.3
     /// Art top to the island's bottom edge: 136.4 pt.
     static let bottomInset: CGFloat = 12
     static let bottomCornerRadius: CGFloat = 36

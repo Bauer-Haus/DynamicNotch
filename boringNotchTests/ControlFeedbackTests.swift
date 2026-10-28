@@ -61,26 +61,27 @@ struct ControlFeedbackTests {
     }
 }
 
-@Suite("Empty control slots")
-struct EmptySlotTests {
-    @Test func emptyEndsGetStarAndAirPlay() {
-        let shown = MusicControlsView.fillingEmptySlots([.none, .previous, .playPause, .next, .none])
-        #expect(shown == [.favorite, .previous, .playPause, .next, .output])
+@Suite("Control row")
+struct ControlRowTests {
+    @Test func defaultIsApplesThreeControls() {
+        let shown = MusicControlsView.shownSlots(MusicControlButton.defaultLayout, limit: MusicControlButton.maxSlotCount)
+        #expect(shown == [.previous, .playPause, .next])
     }
 
-    @Test func chosenButtonsAreKept() {
-        let chosen: [MusicControlButton] = [.shuffle, .previous, .playPause, .next, .repeatMode]
-        #expect(MusicControlsView.fillingEmptySlots(chosen) == chosen)
-    }
-
-    @Test func aButtonIsNeverShownTwice() {
-        // The star is already in the middle, so the empty first slot stays empty.
-        let shown = MusicControlsView.fillingEmptySlots([.none, .favorite, .playPause, .next, .none])
-        #expect(shown == [.none, .favorite, .playPause, .next, .output])
-    }
-
-    @Test func shorterRowsStillGetStarFirstAndAirPlayLast() {
-        let shown = MusicControlsView.fillingEmptySlots([.none, .playPause, .none])
+    @Test func emptySlotsAreLeftOut() {
+        let shown = MusicControlsView.shownSlots([.favorite, .none, .playPause, .none, .output], limit: 5)
         #expect(shown == [.favorite, .playPause, .output])
+    }
+
+    @Test func chosenButtonsAreKeptInOrder() {
+        let chosen: [MusicControlButton] = [.shuffle, .previous, .playPause, .next, .repeatMode]
+        #expect(MusicControlsView.shownSlots(chosen, limit: 5) == chosen)
+    }
+
+    @Test func threeControlsUseApplesSpacingAndMoreShareTheWidth() {
+        #expect(MusicControlsView.cellWidth(count: 3) == OpenPlayer.controlPitch)
+        let five = MusicControlsView.cellWidth(count: 5)
+        #expect(five < OpenPlayer.controlPitch)
+        #expect(abs(five * 5 - (OpenPlayer.islandWidth - 2 * OpenPlayer.sideInset)) < 0.001)
     }
 }
