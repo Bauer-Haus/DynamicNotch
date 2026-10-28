@@ -14,9 +14,7 @@ extension Color {
     static var systemAccent: Color { Color(nsColor: .controlAccentColor) }
 
     static var effectiveAccent: Color {
-        if Defaults[.useCustomAccentColor],
-           let colorData = Defaults[.customAccentColorData],
-           let nsColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+        if let nsColor = NSColor.customAccent {
             return Color(nsColor: nsColor)
         }
         return .accentColor
@@ -24,9 +22,7 @@ extension Color {
     
     /// Returns a darker version of the accent color suitable for backgrounds
     static var effectiveAccentBackground: Color {
-        if Defaults[.useCustomAccentColor],
-           let colorData = Defaults[.customAccentColorData],
-           let nsColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+        if let nsColor = NSColor.customAccent {
             return Color(nsColor: nsColor.withSystemEffect(.disabled))
         }
         return Color.effectiveAccent.opacity(0.25)
@@ -34,10 +30,19 @@ extension Color {
 }
 
 extension NSColor {
+    /// The custom accent colour saved in this app's Settings, whether or not it is on.
+    static var savedCustomAccent: NSColor? {
+        guard let data = Defaults[.customAccentColorData] else { return nil }
+        return try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data)
+    }
+
+    /// The custom accent colour, if one is turned on in Settings.
+    static var customAccent: NSColor? {
+        Defaults[.useCustomAccentColor] ? savedCustomAccent : nil
+    }
+
     static var effectiveAccent: NSColor {
-        if Defaults[.useCustomAccentColor],
-           let colorData = Defaults[.customAccentColorData],
-           let nsColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+        if let nsColor = NSColor.customAccent {
             return nsColor
         }
         return NSColor.controlAccentColor
@@ -45,9 +50,7 @@ extension NSColor {
     
     /// Returns a darker version of the accent color as NSColor suitable for backgrounds
     static var effectiveAccentBackground: NSColor {
-        if Defaults[.useCustomAccentColor],
-           let colorData = Defaults[.customAccentColorData],
-           let nsColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+        if let nsColor = NSColor.customAccent {
             return nsColor.withSystemEffect(.disabled)
         }
         return NSColor.controlAccentColor.withAlphaComponent(0.25)

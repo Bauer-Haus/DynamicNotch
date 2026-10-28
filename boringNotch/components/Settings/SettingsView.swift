@@ -373,14 +373,7 @@ struct Media: View {
         .navigationTitle("Media")
     }
 
-    // Only show controller options that are available on this macOS version
-    private var availableMediaControllers: [MediaControllerType] {
-        if MusicManager.shared.isNowPlayingDeprecated {
-            return MediaControllerType.allCases.filter { $0 != .nowPlaying }
-        } else {
-            return MediaControllerType.allCases
-        }
-    }
+    private var availableMediaControllers: [MediaControllerType] { MediaControllerType.available }
 }
 
 struct About: View {
@@ -726,8 +719,7 @@ struct Advanced: View {
     }
     
     private func loadCustomColor() {
-        if let colorData = Defaults[.customAccentColorData],
-           let nsColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+        if let nsColor = NSColor.savedCustomAccent {
             customAccentColor = Color(nsColor: nsColor)
             
             // Check if loaded color matches a preset
