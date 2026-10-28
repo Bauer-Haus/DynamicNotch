@@ -26,9 +26,11 @@ enum OpenPlayer {
     static let textSize: CGFloat = 13.5
     /// Title to artist, capital to capital.
     static let textLineHeight: CGFloat = 16.7
-    /// The live waveform beside the title, as tall as its capitals.
-    static let waveformSize = CGSize(width: 21.5, height: 11)
-    static let waveformTop: CGFloat = 20
+    /// The live waveform beside the title. Apple's bars are 1.8 pt wide on a 2.9 pt pitch,
+    /// which at our bars' proportions is a 17.2 pt full height, the six spanning 16.2 pt.
+    /// Centred 25.1 pt below the art's top and 28.3 pt in from the island's right edge.
+    static let waveformSize = CGSize(width: 24.6, height: 17.2)
+    static let waveformTop: CGFloat = 16.5
     /// The progress row: its bar's centre is 19.8 pt below the art.
     static let progressHeight: CGFloat = 16
     static let progressTop: CGFloat = 10.9
