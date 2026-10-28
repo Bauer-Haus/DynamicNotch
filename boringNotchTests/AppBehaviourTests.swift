@@ -116,3 +116,26 @@ struct StoredSettingsTests {
         }
     }
 }
+
+@Suite("Open island halo")
+@MainActor
+struct IslandHaloTests {
+    @Test func blurFadesOutwardsAndEndsAtTheWindowEdge() {
+        let samples = stride(from: 0, through: islandHaloMargin, by: 2).map { IslandBackdrop.strength(atDistance: $0) }
+        #expect(samples.first == 0.7)
+        #expect(zip(samples, samples.dropFirst()).allSatisfy { $0 >= $1 })
+        #expect(IslandBackdrop.strength(atDistance: islandHaloMargin + 1) == 0)
+    }
+
+    @Test func distanceIsMeasuredFromTheOpenIsland() {
+        let centreX = windowSize.width / 2
+        #expect(IslandBackdrop.distanceToIsland(CGPoint(x: centreX, y: 50)) == 0)
+        #expect(abs(IslandBackdrop.distanceToIsland(CGPoint(x: centreX, y: openNotchSize.height + 30)) - 30) < 0.001)
+        #expect(abs(IslandBackdrop.distanceToIsland(CGPoint(x: centreX + openNotchSize.width / 2 + 20, y: 10)) - 20) < 0.001)
+    }
+
+    @Test func windowLeavesRoomForTheHalo() {
+        #expect(windowSize.width == openNotchSize.width + 2 * islandHaloMargin)
+        #expect(windowSize.height == openNotchSize.height + islandHaloMargin)
+    }
+}

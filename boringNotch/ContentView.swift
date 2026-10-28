@@ -80,6 +80,9 @@ struct ContentView: View {
         }()
         
         ZStack(alignment: .top) {
+            IslandBackdrop(visible: vm.notchState == .open && Defaults[.enableShadow])
+                .frame(width: windowSize.width, height: windowSize.height)
+                .allowsHitTesting(false)
             VStack(spacing: 0) {
                 let mainLayout = NotchLayout()
                     .frame(alignment: .top)
@@ -101,9 +104,14 @@ struct ContentView: View {
                             .frame(height: 1)
                             .padding(.horizontal, topCornerRadius)
                     }
+                    // Open: the iPhone's faint shadow, fitted to its screenshots (darkens the
+                    // background ~40% at the edge, fading out by ~40 pt). Closed: a small hover shadow.
                     .shadow(
-                        color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                            ? .black.opacity(0.7) : .clear, radius: Defaults[.cornerRadiusScaling] ? 6 : 4
+                        color: !Defaults[.enableShadow] ? .clear
+                            : vm.notchState == .open ? .black.opacity(0.85)
+                            : isHovering ? .black.opacity(0.7) : .clear,
+                        radius: vm.notchState == .open ? 24 * openPlayerScale
+                            : Defaults[.cornerRadiusScaling] ? 6 : 4
                     )
                     .padding(
                         .bottom,
@@ -113,7 +121,12 @@ struct ContentView: View {
                 mainLayout
                     // Top-aligned: content taller than this frame used to be centred, which pushed the
                     // open notch ~7 pt above the screen and hid its top corners.
-                    .frame(height: vm.notchState == .open ? vm.notchSize.height : nil, alignment: .top)
+                    // The window is wider than the island (room for its halo), so pin the open width.
+                    .frame(
+                        width: vm.notchState == .open ? vm.notchSize.width : nil,
+                        height: vm.notchState == .open ? vm.notchSize.height : nil,
+                        alignment: .top
+                    )
                     .conditionalModifier(true) { view in
                         // Same slight bounce as before, settling in ~0.25 s instead of ~0.33 s.
                         let openAnimation = Animation.spring(response: 0.32, dampingFraction: 0.8, blendDuration: 0)

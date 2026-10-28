@@ -135,3 +135,84 @@ struct NotchShape: Shape {
         .frame(width: 200, height: 32)
         .padding(10)
 }
+
+/// The soft blur behind the open island, like the iPhone's: strongest at the island's edge,
+/// fading out over `islandHaloMargin`. It fills the window, with the island at the top centre.
+struct IslandBackdrop: NSViewRepresentable {
+    var visible: Bool
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow // the most neutral: darkens the least of the materials (measured)
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.maskImage = Self.mask
+        view.alphaValue = 0
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        let target: CGFloat = visible ? 1 : 0
+        guard view.alphaValue != target else { return }
+        NSAnimationContext.runAnimationGroup { animation in
+            animation.duration = visible ? 0.25 : 0.3
+            view.animator().alphaValue = target
+        }
+    }
+
+    /// How much of the blur shows, by distance (pt) from the island's edge on the iPhone:
+    /// one minus the share of background detail the iPhone keeps there, after taking out what
+    /// its shadow's darkening accounts for.
+    static let strengthByDistance: [(distance: CGFloat, strength: CGFloat)] = [
+        (0, 0.7), (5, 0.5), (10, 0.25), (20, 0.17), (50, 0.15), (80, 0.12), (120, 0.05), (143, 0),
+    ]
+
+    /// Blur strength `distance` pt outside the island, on the Mac (scaled like the player).
+    static func strength(atDistance distance: CGFloat) -> CGFloat {
+        let d = distance / openPlayerScale
+        let table = strengthByDistance
+        guard d > table[0].distance else { return table[0].strength }
+        for (a, b) in zip(table, table.dropFirst()) where d <= b.distance {
+            let t = (d - a.distance) / (b.distance - a.distance)
+            return a.strength + (b.strength - a.strength) * t
+        }
+        return 0
+    }
+
+    /// Distance (pt) from `point` to the open island, whose top edge is the top of the window.
+    /// Zero inside it. `point` is measured from the window's top-left corner.
+    static func distanceToIsland(_ point: CGPoint) -> CGFloat {
+        let width = openNotchSize.width, height = openNotchSize.height
+        let radius = cornerRadiusInsets.opened.bottom
+        let center = CGPoint(x: windowSize.width / 2, y: height / 2)
+        // Only the bottom corners are round; the top edge meets the screen edge.
+        let r = point.y > center.y ? radius : 0
+        let qx = abs(point.x - center.x) - (width / 2 - r)
+        let qy = abs(point.y - center.y) - (height / 2 - r)
+        let outside = hypot(max(qx, 0), max(qy, 0))
+        return max(0, outside + min(max(qx, qy), 0) - r)
+    }
+
+    /// The fade, as an alpha mask the size of the window.
+    static let mask: NSImage = {
+        let scale = 2
+        let width = Int(windowSize.width) * scale, height = Int(windowSize.height) * scale
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                let point = CGPoint(x: (CGFloat(x) + 0.5) / CGFloat(scale), y: (CGFloat(y) + 0.5) / CGFloat(scale))
+                let distance = distanceToIsland(point)
+                // Under the island itself it's hidden anyway; keep it full so its edge has no seam.
+                let value = distance == 0 ? 1 : strength(atDistance: distance)
+                alpha[y * width + x] = UInt8((value * 255).rounded())
+            }
+        }
+        let image = alpha.withUnsafeMutableBytes { bytes -> CGImage? in
+            CGContext(
+                data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue
+            )?.makeImage()
+        }
+        return image.map { NSImage(cgImage: $0, size: windowSize) } ?? NSImage(size: windowSize)
+    }()
+}
