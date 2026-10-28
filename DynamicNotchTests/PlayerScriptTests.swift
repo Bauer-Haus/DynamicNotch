@@ -1,6 +1,6 @@
 //
 //  PlayerScriptTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  Every script the app sends to Music and Spotify must compile; a copy of the favourite
 //  script once contained Swift code instead of true/false and silently never worked.

@@ -1,8 +1,8 @@
 //
 //  SettingsWindowController.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-06-14.
+//  Opens and manages the Settings window.
 //
 
 import AppKit

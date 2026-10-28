@@ -1,12 +1,17 @@
 //
+//  AudioLevelMonitor.swift
+//  DynamicNotch
+//
+//  Listens to the now-playing app's audio (a Core Audio process tap) and feeds it to the
+//  spectrum analyzer.
+//
+
 import Accelerate
 import AppKit
 import AudioToolbox
 import Cocoa
 import CoreAudio
 import SwiftUI
-
-// MARK: - Live audio levels
 
 /// Taps the output audio of the now-playing app and publishes band levels (0...1).
 ///

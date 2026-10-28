@@ -1,4 +1,10 @@
 //
+//  GeneralSettings.swift
+//  DynamicNotch
+//
+//  Settings, General pane: menu bar icon, displays, notch height, gestures and hover.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

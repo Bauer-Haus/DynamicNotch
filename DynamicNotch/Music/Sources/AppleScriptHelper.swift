@@ -1,8 +1,9 @@
 //
 //  AppleScriptHelper.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-03-29.
+//  Runs AppleScript off the main thread with time limits, and holds the scripts sent to
+//  Music and Spotify.
 //
 
 import AppKit

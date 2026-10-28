@@ -1,6 +1,6 @@
 //
 //  ControlFeedbackTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  The notch's media controls change at once; the player's report confirms them later.
 //

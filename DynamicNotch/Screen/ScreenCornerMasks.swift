@@ -1,4 +1,10 @@
 //
+//  ScreenCornerMasks.swift
+//  DynamicNotch
+//
+//  The black rounded bottom screen corners that match the top ones.
+//
+
 import Cocoa
 import SkyLightWindow
 import Defaults

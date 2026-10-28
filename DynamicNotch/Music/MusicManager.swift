@@ -1,9 +1,11 @@
 //
 //  MusicManager.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 03/08/24.
+//  The now-playing hub: the current song, artwork, playback state and lyrics, from
+//  whichever music source is chosen. Buttons go through here.
 //
+
 import AppKit
 import Combine
 import Defaults

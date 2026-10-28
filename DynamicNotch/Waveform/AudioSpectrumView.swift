@@ -1,4 +1,11 @@
 //
+//  AudioSpectrumView.swift
+//  DynamicNotch
+//
+//  Draws the waveform bars. The bars follow the real audio of the now-playing app; if no
+//  audio arrives (permission denied) they use a simple animation instead.
+//
+
 import Accelerate
 import AppKit
 import AudioToolbox

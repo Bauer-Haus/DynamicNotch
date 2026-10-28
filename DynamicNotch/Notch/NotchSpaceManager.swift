@@ -1,8 +1,9 @@
 //
 //  NotchSpaceManager.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2024-10-27.
+//  A private macOS Space above all others that holds the notch windows, so they show over
+//  full-screen apps.
 //
 
 import Foundation

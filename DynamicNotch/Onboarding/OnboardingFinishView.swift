@@ -1,10 +1,9 @@
 //
 //  OnboardingFinishView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-06-23.
+//  First-launch final screen.
 //
-
 
 import SwiftUI
 

@@ -1,8 +1,8 @@
 //
 //  MusicSlotConfigurationView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-11-17.
+//  The editor for choosing which buttons go in the control row.
 //
 
 import Defaults

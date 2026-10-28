@@ -1,8 +1,8 @@
 //
 //  OnboardingView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-06-23.
+//  The first-launch flow: welcome, music source, finish.
 //
 
 import SwiftUI

@@ -1,4 +1,10 @@
 //
+//  PlaybackProgressView.swift
+//  DynamicNotch
+//
+//  Elapsed time, progress bar and time remaining.
+//
+
 import AVKit
 import Combine
 import Defaults

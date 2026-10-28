@@ -1,4 +1,10 @@
 //
+//  OutputPickerButton.swift
+//  DynamicNotch
+//
+//  The audio output button (AirPlay, speakers, headphones).
+//
+
 import AVKit
 import Combine
 import Defaults

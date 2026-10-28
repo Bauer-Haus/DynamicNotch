@@ -1,8 +1,8 @@
 //
 //  MediaChecker.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-07-26.
+//  Checks whether the Now Playing source still works on this macOS version.
 //
 
 import Foundation

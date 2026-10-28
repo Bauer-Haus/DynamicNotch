@@ -1,4 +1,10 @@
 //
+//  AboutSettings.swift
+//  DynamicNotch
+//
+//  Settings, About pane: version and links.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

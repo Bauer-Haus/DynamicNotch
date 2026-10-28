@@ -1,9 +1,9 @@
-    //
-    //  DataTypes+Extensions.swift
-    //  boringNotch
-    //
-    //  Created by Harsh Vardhan  Goswami  on 27/08/24.
-    //
+//
+//  DataTypes+Extensions.swift
+//  DynamicNotch
+//
+//  Small helpers on dates and numbers.
+//
 
 import Foundation
 

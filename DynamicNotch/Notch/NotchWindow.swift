@@ -1,8 +1,8 @@
 //
 //  NotchWindow.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-10-20.
+//  The borderless panel the notch lives in, kept above other windows and on every Space.
 //
 
 import Cocoa

@@ -1,10 +1,14 @@
 //
+//  VolumeControlView.swift
+//  DynamicNotch
+//
+//  The volume button and its slider.
+//
+
 import AVKit
 import Combine
 import Defaults
 import SwiftUI
-
-// MARK: - Volume Control View
 
 struct VolumeControlView: View {
     @ObservedObject var musicManager = MusicManager.shared

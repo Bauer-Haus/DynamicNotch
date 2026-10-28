@@ -1,4 +1,11 @@
 //
+//  AppDelegate.swift
+//  DynamicNotch
+//
+//  Starts the app: creates a notch window per screen, follows screen and lock-screen
+//  changes, shows onboarding on first launch.
+//
+
 import AVFoundation
 import Combine
 import Defaults

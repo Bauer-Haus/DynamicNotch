@@ -1,8 +1,8 @@
 //
 //  HoverButton.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Kraigo on 04.09.2024.
+//  The buttons used in the notch, with the iPhone-style press circle.
 //
 
 import SwiftUI

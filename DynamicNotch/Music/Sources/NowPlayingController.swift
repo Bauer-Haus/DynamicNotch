@@ -1,8 +1,8 @@
 //
 //  NowPlayingController.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-03-29.
+//  Music source for any app, read from macOS's Now Playing info through the bundled helper.
 //
 
 import AppKit

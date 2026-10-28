@@ -1,4 +1,10 @@
 //
+//  AppearanceSettings.swift
+//  DynamicNotch
+//
+//  Settings, Appearance pane: waveform colours and screen corners.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

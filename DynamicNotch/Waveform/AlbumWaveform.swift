@@ -1,6 +1,10 @@
 //
-import AVKit
-import Combine
+//  AlbumWaveform.swift
+//  DynamicNotch
+//
+//  The waveform with the blurred album art showing through its bars.
+//
+
 import Defaults
 import SwiftUI
 

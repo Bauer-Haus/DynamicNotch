@@ -1,8 +1,8 @@
 //
 //  Color+AccentColor.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-10-24.
+//  The accent colour: the system one or the one chosen in Settings.
 //
 
 import SwiftUI

@@ -1,8 +1,8 @@
 //
 //  SpotifyController.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-03-29.
+//  Music source for Spotify, through AppleScript.
 //
 
 import Foundation

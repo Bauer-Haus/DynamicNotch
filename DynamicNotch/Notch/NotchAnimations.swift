@@ -1,8 +1,8 @@
 //
-//  drop.swift
-//  boringNotch
+//  NotchAnimations.swift
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on  04/08/24.
+//  The springs used when the notch opens and closes.
 //
 
 import Foundation

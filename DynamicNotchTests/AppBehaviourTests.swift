@@ -1,6 +1,6 @@
 //
 //  AppBehaviourTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  Full-screen hiding, the safeguards (AppleScript timeouts, helper restarts) and the
 //  values stored in the user's settings.

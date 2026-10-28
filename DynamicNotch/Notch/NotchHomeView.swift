@@ -1,10 +1,14 @@
 //
+//  NotchHomeView.swift
+//  DynamicNotch
+//
+//  What the open notch shows: the music player.
+//
+
 import AVKit
 import Combine
 import Defaults
 import SwiftUI
-
-// MARK: - Main View
 
 struct NotchHomeView: View {
     @EnvironmentObject var vm: NotchViewModel

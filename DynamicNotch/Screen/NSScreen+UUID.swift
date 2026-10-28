@@ -1,8 +1,8 @@
 //
 //  NSScreen+UUID.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-11-21.
+//  Finds screens by their stable display ID.
 //
 
 import AppKit

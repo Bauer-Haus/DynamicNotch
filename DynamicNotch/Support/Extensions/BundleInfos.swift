@@ -1,8 +1,8 @@
 //
 //  BundleInfos.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 08/08/2024.
+//  The app's version and build number.
 //
 
 import SwiftUI

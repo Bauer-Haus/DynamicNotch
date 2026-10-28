@@ -1,3 +1,10 @@
+//
+//  Logger.swift
+//  DynamicNotch
+//
+//  Simple categorised logging.
+//
+
 import Foundation
 import SwiftUI
 

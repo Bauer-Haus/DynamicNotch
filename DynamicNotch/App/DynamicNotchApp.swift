@@ -1,8 +1,8 @@
 //
-//  boringNotchApp.swift
-//  boringNotchApp
+//  DynamicNotchApp.swift
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 02/08/24.
+//  The app entry point and its menu bar menu (Settings, Restart, Quit).
 //
 
 import AVFoundation

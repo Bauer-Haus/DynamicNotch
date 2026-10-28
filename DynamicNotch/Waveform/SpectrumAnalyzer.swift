@@ -1,22 +1,12 @@
 //
-//  MusicVisualizer.swift
-//  boringNotch
+//  SpectrumAnalyzer.swift
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 02/08/24.
+//  Turns raw audio into the six bar levels, matched to the iPhone's Dynamic Island.
 //
-//  The bars follow the real audio of the now-playing app (via a Core Audio
-//  process tap + FFT). If that app's audio can't be found the tap listens to all
-//  system output instead. If no audio arrives at all (permission denied) the
-//  original random animation is used as a fallback.
-//
-import Accelerate
-import AppKit
-import AudioToolbox
-import Cocoa
-import CoreAudio
-import SwiftUI
 
-// MARK: - Spectrum analysis
+import Accelerate
+import Foundation
 
 /// The iPhone-matched analysis, kept apart from Core Audio so it can be tested with
 /// synthetic audio. Fitted to 120 fps captures of the Dynamic Island playing test tones,

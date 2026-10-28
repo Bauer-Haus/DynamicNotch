@@ -1,8 +1,8 @@
 //
 //  ImageService.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-09-13.
+//  Downloads and caches artwork images.
 //
 
 import Foundation

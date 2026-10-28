@@ -1,9 +1,9 @@
 //
 //  NotchView.swift
-//  boringNotchApp
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan Goswami  on 02/08/24
-//  Modified by Bauer Jardine on 10/28/2026.
+//  The notch itself: its black shape, size and open/close animations, hover and gestures.
+//  Shows the closed player or the open player.
 //
 
 import AVFoundation

@@ -1,6 +1,6 @@
 //
 //  AlbumArtColourTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  The blurred album art behind the visualizer bars, and the lift for dark covers.
 //

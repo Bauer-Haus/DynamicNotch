@@ -1,4 +1,11 @@
 //
+//  AdvancedSettings.swift
+//  DynamicNotch
+//
+//  Settings, Advanced pane: accent colour, window shadow and behaviour, lock screen, screen
+//  recording.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

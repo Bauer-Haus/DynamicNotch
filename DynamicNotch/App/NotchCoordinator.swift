@@ -1,8 +1,9 @@
 //
 //  NotchCoordinator.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2024-11-20.
+//  App-wide notch state shared by every screen: which screen the notch is on, first launch,
+//  current view.
 //
 
 import AppKit

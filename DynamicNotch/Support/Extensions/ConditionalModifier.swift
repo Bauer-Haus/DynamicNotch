@@ -1,8 +1,8 @@
 //
 //  ConditionalModifier.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 20/08/2024.
+//  Applies a view modifier only when a condition is true.
 //
 
 import SwiftUI

@@ -1,4 +1,10 @@
 //
+//  AlbumArtView.swift
+//  DynamicNotch
+//
+//  The album cover in the open player; clicking it opens the music app.
+//
+
 import AVKit
 import Combine
 import Defaults

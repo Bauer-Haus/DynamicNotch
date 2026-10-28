@@ -1,8 +1,8 @@
 //
 //  WelcomeView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 2024. 09. 26..
+//  First-launch welcome screen.
 //
 
 import SwiftUI

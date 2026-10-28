@@ -1,8 +1,9 @@
 //
-//  Image2Color.swift
-//  boringNotch
+//  NSImage+Extensions.swift
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 07/08/2024.
+//  Album art processing: the blurred colour layer behind the waveform, thumbnails, and the
+//  raised black level.
 //
 
 import SwiftUI

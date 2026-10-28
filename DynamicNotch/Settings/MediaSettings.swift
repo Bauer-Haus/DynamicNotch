@@ -1,4 +1,11 @@
 //
+//  MediaSettings.swift
+//  DynamicNotch
+//
+//  Settings, Media pane: music source, hiding in full screen, lyrics and the control
+//  buttons.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

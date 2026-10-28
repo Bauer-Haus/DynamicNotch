@@ -1,8 +1,8 @@
 //
 //  ApplicationRelauncher.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Corentin132 on 03/10/2025.
+//  Restarts the app.
 //
 
 import AppKit

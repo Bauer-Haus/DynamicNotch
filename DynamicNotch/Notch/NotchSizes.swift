@@ -1,8 +1,9 @@
 //
-//  sizeMatters.swift
-//  boringNotch
+//  NotchSizes.swift
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 05/08/24.
+//  Every size in the notch: Apple-measured open player dimensions and the closed notch size
+//  for each screen.
 //
 
 import Defaults

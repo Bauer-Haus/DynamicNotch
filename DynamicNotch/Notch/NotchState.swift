@@ -1,8 +1,8 @@
 //
-//  generic.swift
-//  boringNotch
+//  NotchState.swift
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 04/08/24.
+//  Small shared types: whether the notch is open or closed, and its content and style.
 //
 
 import Foundation

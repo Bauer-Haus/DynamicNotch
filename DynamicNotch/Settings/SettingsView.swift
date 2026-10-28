@@ -1,8 +1,8 @@
 //
 //  SettingsView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 07/08/2024.
+//  The Settings window's sidebar and panes.
 //
 
 import AVFoundation

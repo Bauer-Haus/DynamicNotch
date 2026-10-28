@@ -1,6 +1,6 @@
 //
 //  SpectrumAnalyzerTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  The visualizer's analysis, fed with synthetic audio instead of a Core Audio tap.
 //

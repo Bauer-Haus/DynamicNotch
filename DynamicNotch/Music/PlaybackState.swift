@@ -1,8 +1,8 @@
 //
 //  PlaybackState.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-03-29.
+//  A snapshot of what is playing, as reported by a music source.
 //
 
 import Foundation

@@ -1,8 +1,9 @@
 //
 //  NotchViewModel.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 04/08/24.
+//  One notch's state (open or closed, its size, which screen) and the open and close
+//  actions.
 //
 
 import Combine

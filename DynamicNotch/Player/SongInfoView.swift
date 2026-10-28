@@ -1,4 +1,10 @@
 //
+//  SongInfoView.swift
+//  DynamicNotch
+//
+//  Title, artist and lyric line beside the cover.
+//
+
 import AVKit
 import Combine
 import Defaults

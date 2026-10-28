@@ -1,4 +1,10 @@
 //
+//  MusicSliderView.swift
+//  DynamicNotch
+//
+//  The draggable progress bar used by the playback progress row.
+//
+
 import AVKit
 import Combine
 import Defaults

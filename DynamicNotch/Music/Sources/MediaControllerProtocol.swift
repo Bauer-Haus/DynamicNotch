@@ -1,8 +1,8 @@
 //
 //  MediaControllerProtocol.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-03-29.
+//  What every music source (Now Playing, Apple Music, Spotify) must provide.
 //
 
 import Foundation

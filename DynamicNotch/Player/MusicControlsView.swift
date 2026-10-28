@@ -1,4 +1,10 @@
 //
+//  MusicControlsView.swift
+//  DynamicNotch
+//
+//  The row of media buttons (previous, play/pause, next and any extras chosen in Settings).
+//
+
 import AVKit
 import Combine
 import Defaults

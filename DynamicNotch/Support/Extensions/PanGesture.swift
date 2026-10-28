@@ -1,8 +1,8 @@
 //
 //  PanGesture.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 21/08/2024.
+//  Trackpad swipe gestures on the notch.
 //
 
 import AppKit

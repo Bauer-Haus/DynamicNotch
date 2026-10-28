@@ -1,8 +1,8 @@
 //
-//  FullscreenMediaDetection.swift
-//  boringNotch
+//  FullscreenMediaDetector.swift
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 06/09/2024.
+//  Decides when to hide the notch for a full-screen app, per screen.
 //
 
 import Foundation

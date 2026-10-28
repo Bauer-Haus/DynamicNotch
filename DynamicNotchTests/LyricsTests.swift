@@ -1,6 +1,8 @@
 //
 //  LyricsTests.swift
-//  boringNotchTests
+//  DynamicNotch
+//
+//  Lyrics lookup and timing.
 //
 
 import Foundation

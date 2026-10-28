@@ -1,6 +1,6 @@
 //
 //  StationArtworkTests.swift
-//  boringNotchTests
+//  DynamicNotch
 //
 //  Apple Music stations have no artwork in Music's scripting interface, so the Apple Music
 //  source takes it from the Now Playing helper's `get` output.

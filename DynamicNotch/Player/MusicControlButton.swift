@@ -1,8 +1,8 @@
 //
 //  MusicControlButton.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-11-16.
+//  Every media button that can go in the control row, with its icon and size.
 //
 
 import CoreGraphics

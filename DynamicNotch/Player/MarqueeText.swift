@@ -1,8 +1,8 @@
 //
-//  MarqueeTextView.swift
-//  boringNotch
+//  MarqueeText.swift
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 08/08/2024.
+//  Text that scrolls sideways when it is too long to fit.
 //
 
 import SwiftUI

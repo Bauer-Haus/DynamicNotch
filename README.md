@@ -1,8 +1,7 @@
-# Boring Notch (media player edition)
+# DynamicNotch
 
 A macOS app that turns the MacBook notch into a music player, modelled on the iPhone's
-Dynamic Island. It is a stripped-down fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch)
-that keeps only the media player and rebuilds the waveform to match the iPhone's.
+Dynamic Island, with a waveform that follows the music the way the iPhone's does.
 
 ## What it does
 
@@ -32,14 +31,31 @@ that keeps only the media player and rebuilds the waveform to match the iPhone's
 
 ## Building
 
-1. Open `boringNotch.xcodeproj` in Xcode.
-2. Under **Signing & Capabilities** for the `boringNotch` target, choose your own team.
-3. Run the `boringNotch` scheme. ⌘U runs the unit tests.
+1. Open `DynamicNotch.xcodeproj` in Xcode.
+2. Under **Signing & Capabilities** for the `DynamicNotch` target, choose your own team.
+3. Run the `DynamicNotch` scheme. ⌘U runs the unit tests.
+
+## Finding your way around
+
+Xcode's navigator shows the folders exactly as they are on disk; a new file dropped into a
+folder joins the app automatically. Every file starts with a line saying what it does.
+
+| Folder | What's in it |
+| --- | --- |
+| `App` | Start-up, the menu bar menu, app-wide state, Info.plist and entitlements |
+| `Notch` | The notch window, its shape, sizes, open/close animations and view model |
+| `Player` | The open notch's music player: cover, titles, progress bar, buttons, volume, output |
+| `Music` | What's playing: `MusicManager` and the sources (Now Playing, Apple Music, Spotify) |
+| `Waveform` | The live waveform: audio tap, spectrum analysis and the bars |
+| `Screen` | Screen-level features: rounded bottom corners, full-screen detection, Spaces |
+| `Settings` | The Settings window, one file per pane, and every saved setting (`SettingsKeys`) |
+| `Onboarding` | The first-launch screens |
+| `Support` | Small extensions and helpers |
+| `Resources` | Icons and images, translations, preview assets |
 
 The app does not update itself; install new builds by replacing the app.
 
 ## Licence and credits
 
-GPL-3.0, see [LICENSE](LICENSE). Based on [boring.notch](https://github.com/TheBoredTeam/boring.notch)
-by TheBoredTeam and its contributors. Third-party code and its licences are listed in
-[THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES).
+GPL-3.0, see [LICENSE](LICENSE) and [CREDITS](CREDITS.md). Third-party code and its licences
+are listed in [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES).

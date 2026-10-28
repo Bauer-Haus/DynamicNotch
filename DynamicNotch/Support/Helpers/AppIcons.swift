@@ -1,8 +1,8 @@
 //
 //  AppIcons.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Harsh Vardhan  Goswami  on 16/08/24.
+//  App icons by bundle ID, cached.
 //
 
 import SwiftUI

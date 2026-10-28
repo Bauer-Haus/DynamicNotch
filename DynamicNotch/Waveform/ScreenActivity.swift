@@ -1,12 +1,12 @@
 //
-import Accelerate
-import AppKit
-import AudioToolbox
-import Cocoa
-import CoreAudio
-import SwiftUI
+//  ScreenActivity.swift
+//  DynamicNotch
+//
+//  Whether anyone can see the screens, so the waveform can stop when they are asleep or
+//  locked.
+//
 
-// MARK: - Bars view
+import AppKit
 
 /// Whether anyone can see the screens: false while the displays sleep or another user's
 /// session is in front. The notch window also shows on the lock screen, so window

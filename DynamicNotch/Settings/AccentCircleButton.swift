@@ -1,4 +1,10 @@
 //
+//  AccentCircleButton.swift
+//  DynamicNotch
+//
+//  A colour swatch button for picking the accent colour.
+//
+
 import AVFoundation
 import Defaults
 import LaunchAtLogin

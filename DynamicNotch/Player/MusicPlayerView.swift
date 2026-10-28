@@ -1,17 +1,15 @@
 //
-//  NotchHomeView.swift
-//  boringNotch
+//  MusicPlayerView.swift
+//  DynamicNotch
 //
-//  Created by Hugo Persson on 2024-08-18.
-//  Modified by Harsh Vardhan Goswami & Richard Kunkli & Mustafa Ramadan
+//  The open notch's player layout: cover, title and waveform on top, then the progress bar
+//  and controls.
 //
 
 import AVKit
 import Combine
 import Defaults
 import SwiftUI
-
-// MARK: - Music Player Components
 
 struct MusicPlayerView: View {
     @EnvironmentObject var vm: NotchViewModel

@@ -1,8 +1,8 @@
 //
-//  Constants.swift
-//  boringNotch
+//  SettingsKeys.swift
+//  DynamicNotch
 //
-//  Created by Richard Kunkli on 2024. 10. 17..
+//  Every saved setting (its key and default) and the setting types.
 //
 
 import SwiftUI

@@ -1,8 +1,8 @@
 //
 //  MusicControllerSelectionView.swift
-//  boringNotch
+//  DynamicNotch
 //
-//  Created by Alexander on 2025-06-23.
+//  First-launch screen for choosing the music source.
 //
 
 import SwiftUI
