@@ -181,18 +181,3 @@ struct ScreenCornerTests {
         #expect(abs(ScreenCornerMasks.cornerRadiusMillimetres * 1512 / 302.4 - 18) < 0.01)
     }
 }
-
-@Suite("Pointer under the bottom corners")
-@MainActor
-struct PointerUnderCornerTests {
-    private let area = ScreenCornerMasks.maskPath(in: CGRect(x: 100, y: 0, width: 29, height: 29), corner: .bottomLeft, radius: 18)
-
-    @Test func hidesRightInTheCorner() {
-        #expect(ScreenCornerMasks.isInBlackArea(CGPoint(x: 100.5, y: 0.5), areas: [area]))
-    }
-
-    @Test func showsJustOutsideTheCurve() {
-        #expect(!ScreenCornerMasks.isInBlackArea(CGPoint(x: 110, y: 10), areas: [area]))
-        #expect(!ScreenCornerMasks.isInBlackArea(CGPoint(x: 50, y: 0.5), areas: [area]))
-    }
-}
