@@ -21,18 +21,15 @@ enum MusicPlayerImageSizes {
     static let size = (opened: CGSize(width: 90, height: 90), closed: CGSize(width: 20, height: 20))
 }
 
-@MainActor func getScreenFrame(_ screenUUID: String? = nil) -> CGRect? {
-    var selectedScreen = NSScreen.main
+/// The screen the notch is on: the one with this UUID, or the main screen if none is given.
+/// (A UUID that matches no connected screen gives nil, not the main screen.)
+@MainActor func notchScreen(_ screenUUID: String?) -> NSScreen? {
+    guard let uuid = screenUUID else { return NSScreen.main }
+    return NSScreen.screen(withUUID: uuid)
+}
 
-    if let uuid = screenUUID {
-        selectedScreen = NSScreen.screen(withUUID: uuid)
-    }
-    
-    if let screen = selectedScreen {
-        return screen.frame
-    }
-    
-    return nil
+@MainActor func getScreenFrame(_ screenUUID: String? = nil) -> CGRect? {
+    notchScreen(screenUUID)?.frame
 }
 
 @MainActor func getClosedNotchSize(screenUUID: String? = nil) -> CGSize {
@@ -40,14 +37,7 @@ enum MusicPlayerImageSizes {
     var notchHeight: CGFloat = Defaults[.nonNotchHeight]
     var notchWidth: CGFloat = 185
 
-    var selectedScreen = NSScreen.main
-
-    if let uuid = screenUUID {
-        selectedScreen = NSScreen.screen(withUUID: uuid)
-    }
-
-    // Check if the screen is available
-    if let screen = selectedScreen {
+    if let screen = notchScreen(screenUUID) {
         // Calculate and set the exact width of the notch
         if let topLeftNotchpadding: CGFloat = screen.auxiliaryTopLeftArea?.width,
            let topRightNotchpadding: CGFloat = screen.auxiliaryTopRightArea?.width

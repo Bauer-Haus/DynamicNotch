@@ -36,6 +36,12 @@ enum MediaControllerType: String, CaseIterable, Identifiable, Defaults.Serializa
     case spotify = "Spotify"
     
     var id: String { self.rawValue }
+
+    /// The sources offered in onboarding and Settings: Now Playing is left out if this
+    /// macOS version blocks it.
+    @MainActor static var available: [MediaControllerType] {
+        MusicManager.shared.isNowPlayingDeprecated ? allCases.filter { $0 != .nowPlaying } : allCases
+    }
 }
 
 extension Defaults.Keys {

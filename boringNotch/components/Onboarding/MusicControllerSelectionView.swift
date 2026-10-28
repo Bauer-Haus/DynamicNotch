@@ -14,13 +14,7 @@ struct MusicControllerSelectionView: View {
 
     @Default(.mediaController) var mediaController
     
-    private var availableMediaControllers: [MediaControllerType] {
-        if MusicManager.shared.isNowPlayingDeprecated {
-            return MediaControllerType.allCases.filter { $0 != .nowPlaying }
-        } else {
-            return MediaControllerType.allCases
-        }
-    }
+    private var availableMediaControllers: [MediaControllerType] { MediaControllerType.available }
     
     @State private var selectedMediaController: MediaControllerType = Defaults[.mediaController]
     
