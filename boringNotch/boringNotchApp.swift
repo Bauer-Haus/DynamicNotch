@@ -229,6 +229,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start tracking display sleep now, so it's known even if music starts while asleep.
         _ = ScreenActivity.shared
 
+        // Round the bottom corners of the screen to match its top ones.
+        ScreenCornerMasks.shared.refresh()
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenConfigurationDidChange),

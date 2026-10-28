@@ -145,3 +145,39 @@ struct ClosingBottomTests {
         #expect(NotchShape.bottomLimit(travel, progress: 2) == 218)
     }
 }
+
+@Suite("Bottom screen corners")
+@MainActor
+struct ScreenCornerTests {
+    /// How far in from the side edge the black reaches, `height` pt above the bottom edge.
+    private func blackWidth(atHeight height: CGFloat, corner: ScreenCornerMasks.Corner) -> CGFloat {
+        let bounds = CGRect(x: 0, y: 0, width: 29, height: 29)
+        let path = ScreenCornerMasks.maskPath(in: bounds, corner: corner, radius: 18)
+        var x: CGFloat = 0
+        while x < 29 {
+            let point = CGPoint(x: corner == .bottomLeft ? x : 29 - x, y: height)
+            if !path.contains(point, using: .evenOdd) { break }
+            x += 0.01
+        }
+        return x
+    }
+
+    /// The photo of the top corner: 12.55, 6.61, 2.04 and 0.61 pt in, at 1, 4, 10 and 14 pt.
+    @Test(arguments: [ScreenCornerMasks.Corner.bottomLeft, .bottomRight])
+    func matchesTheMeasuredTopCorner(corner: ScreenCornerMasks.Corner) {
+        for (height, measured) in [(1.0, 12.55), (4.0, 6.61), (10.0, 2.04), (14.0, 0.61)] {
+            #expect(abs(blackWidth(atHeight: height, corner: corner) - measured) < 0.35)
+        }
+    }
+
+    @Test func leavesTheRestOfTheScreenAlone() {
+        let path = ScreenCornerMasks.maskPath(in: CGRect(x: 0, y: 0, width: 29, height: 29), corner: .bottomLeft, radius: 18)
+        #expect(!path.contains(CGPoint(x: 20, y: 20), using: .evenOdd))
+        #expect(!path.contains(CGPoint(x: 28, y: 0.5), using: .evenOdd))
+    }
+
+    @Test func eighteenPointsAtTheFourteenInchDefault() {
+        // 3.6 mm on a 302.4 mm wide panel shown as 1512 pt.
+        #expect(abs(ScreenCornerMasks.cornerRadiusMillimetres * 1512 / 302.4 - 18) < 0.01)
+    }
+}
