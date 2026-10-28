@@ -230,7 +230,23 @@ struct MusicControlsView: View {
             MusicControlButton.maxSlotCount
         )
         let padded = slotConfig.padded(to: sanitizedLimit, filler: .none)
-        return Array(padded.prefix(sanitizedLimit))
+        return Self.fillingEmptySlots(Array(padded.prefix(sanitizedLimit)))
+    }
+
+    /// Empty slots show the iPhone's button for that position (☆ on the left, AirPlay on
+    /// the right) unless it is already in another slot.
+    static func fillingEmptySlots(_ slots: [MusicControlButton]) -> [MusicControlButton] {
+        let defaults = MusicControlButton.defaultLayout
+        var result = slots
+        for (i, slot) in slots.enumerated() where slot == .none {
+            // Match from the nearer end, so a shorter row still gets ☆ first and AirPlay last.
+            let fromEnd = slots.count - 1 - i
+            let candidate = i <= fromEnd
+                ? defaults[min(i, defaults.count - 1)]
+                : defaults[max(0, defaults.count - 1 - fromEnd)]
+            if candidate != .none, !result.contains(candidate) { result[i] = candidate }
+        }
+        return result
     }
 
     @ViewBuilder

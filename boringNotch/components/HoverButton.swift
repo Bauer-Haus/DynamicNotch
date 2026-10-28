@@ -31,7 +31,7 @@ struct HoverButton: View {
 
     var body: some View {
         let size = pointSize.map { max(30, $0 * 1.1) } ?? CGFloat(scale == .large ? 40 : 30)
-        
+
         Button(action: action) {
             Rectangle()
                 .fill(.clear)
@@ -39,7 +39,7 @@ struct HoverButton: View {
                 .frame(width: size, height: size)
                 .overlay {
                     Capsule()
-                        .fill(isHovering ? Color.gray.opacity(0.2) : .clear)
+                        .fill(isHovering && pointSize == nil ? Color.gray.opacity(0.2) : .clear)
                         .frame(width: size, height: size)
                         .overlay {
                             Image(systemName: icon)
@@ -49,11 +49,68 @@ struct HoverButton: View {
                         }
                 }
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(IslandPressStyle(enabled: pointSize != nil, hovering: isHovering))
         .onHover { hovering in
             withAnimation(.smooth(duration: 0.3)) {
                 isHovering = hovering
             }
         }
+    }
+}
+
+/// The press feedback of the iPhone's expanded Dynamic Island, measured from a 120 fps
+/// recording: a dark grey circle (24/255, ~61 pt on the iPhone, ~80 pt at this island's
+/// scale) appears under the button and the icon shrinks to ~0.7x; on release the circle
+/// fades over 0.2 s, then the icon springs back with a small overshoot.
+struct IslandPressStyle: ButtonStyle {
+    var enabled: Bool
+    var hovering: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if enabled {
+            IslandPressBody(configuration: configuration, hovering: hovering)
+        } else {
+            configuration.label
+        }
+    }
+
+    static let circleDiameter: CGFloat = 80
+    static let circleColor = Color(white: 24.0 / 255)
+    static let pressedScale: CGFloat = 0.7
+    static let fadeDuration: TimeInterval = 0.2
+}
+
+private struct IslandPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    let hovering: Bool
+    @State private var circle: Double = 0
+    @State private var shrunk = false
+    @State private var springBack: Task<Void, Never>?
+
+    var body: some View {
+        configuration.label
+            .scaleEffect(shrunk ? IslandPressStyle.pressedScale : 1)
+            .background {
+                Circle()
+                    .fill(IslandPressStyle.circleColor)
+                    .frame(width: IslandPressStyle.circleDiameter, height: IslandPressStyle.circleDiameter)
+                    // A faint circle on hover is the Mac's extra; pressing shows it in full.
+                    .opacity(max(circle, hovering ? 0.45 : 0))
+                    .allowsHitTesting(false)
+            }
+            .onChange(of: configuration.isPressed) { _, pressed in
+                springBack?.cancel()
+                if pressed {
+                    circle = 1  // at once, like the iPhone
+                    withAnimation(.easeOut(duration: 0.04)) { shrunk = true }
+                } else {
+                    withAnimation(.easeOut(duration: IslandPressStyle.fadeDuration)) { circle = 0 }
+                    springBack = Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(IslandPressStyle.fadeDuration))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { shrunk = false }
+                    }
+                }
+            }
     }
 }

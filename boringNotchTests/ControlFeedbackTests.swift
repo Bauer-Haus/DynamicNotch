@@ -60,3 +60,27 @@ struct ControlFeedbackTests {
         #expect(MusicManager.nextRepeatMode(after: .one, offAndAllOnly: true) == .off)
     }
 }
+
+@Suite("Empty control slots")
+struct EmptySlotTests {
+    @Test func emptyEndsGetStarAndAirPlay() {
+        let shown = MusicControlsView.fillingEmptySlots([.none, .previous, .playPause, .next, .none])
+        #expect(shown == [.favorite, .previous, .playPause, .next, .output])
+    }
+
+    @Test func chosenButtonsAreKept() {
+        let chosen: [MusicControlButton] = [.shuffle, .previous, .playPause, .next, .repeatMode]
+        #expect(MusicControlsView.fillingEmptySlots(chosen) == chosen)
+    }
+
+    @Test func aButtonIsNeverShownTwice() {
+        // The star is already in the middle, so the empty first slot stays empty.
+        let shown = MusicControlsView.fillingEmptySlots([.none, .favorite, .playPause, .next, .none])
+        #expect(shown == [.none, .favorite, .playPause, .next, .output])
+    }
+
+    @Test func shorterRowsStillGetStarFirstAndAirPlayLast() {
+        let shown = MusicControlsView.fillingEmptySlots([.none, .playPause, .none])
+        #expect(shown == [.favorite, .playPause, .output])
+    }
+}
