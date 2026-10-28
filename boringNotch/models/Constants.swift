@@ -72,6 +72,8 @@ extension Defaults.Keys {
     // MARK: Appearance
     static let showEmojis = Key<Bool>("showEmojis", default: false)
     static let enableShadow = Key<Bool>("enableShadow", default: true)
+    /// Black rounded corners at the bottom of the screen, matching its top ones.
+    static let roundBottomScreenCorners = Key<Bool>("roundBottomScreenCorners", default: true)
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
 
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)

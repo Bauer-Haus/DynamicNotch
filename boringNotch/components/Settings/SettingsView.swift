@@ -452,6 +452,9 @@ struct Appearance: View {
                 Defaults.Toggle(key: .coloredSpectrogram) {
                     Text("Colored spectrogram")
                 }
+                Defaults.Toggle(key: .roundBottomScreenCorners) {
+                    Text("Round bottom screen corners")
+                }
             } header: {
                 Text("Media")
             }

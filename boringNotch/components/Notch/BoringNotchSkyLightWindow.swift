@@ -118,8 +118,9 @@ class BoringNotchSkyLightWindow: NSPanel {
 /// corners. Measured from a photo of a 14" MacBook Pro's top corner against an on-screen
 /// grid: an Apple continuous corner of 18 pt at 1512 x 982 (36 pixels, 3.6 mm), within
 /// ~0.1 pt along the whole curve. Clicks pass through, and like the real corners they don't
-/// show in screenshots or recordings. They sit above every window, and the pointer hides
-/// while its tip is on them, so it seems to go under them like it would under real corners.
+/// show in screenshots or recordings. They sit above every window, full-screen apps and the
+/// lock screen included, and the pointer hides while its tip is on them, so it seems to go
+/// under them like it would under real corners. Settings can turn them off.
 @MainActor
 final class ScreenCornerMasks {
     static let shared = ScreenCornerMasks()
@@ -134,6 +135,7 @@ final class ScreenCornerMasks {
     private var blackAreas: [CGPath] = []
     private var pointerHidden = false
     private var pointerMonitors: [Any] = []
+    private var settingObserver: AnyCancellable?
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -141,6 +143,9 @@ final class ScreenCornerMasks {
         ) { _ in
             Task { @MainActor in ScreenCornerMasks.shared.refresh() }
         }
+        settingObserver = Defaults.publisher(.roundBottomScreenCorners, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { _ in Task { @MainActor in ScreenCornerMasks.shared.refresh() } }
         Self.allowHidingPointerInBackground()
         let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
         // Other apps' pointer moves, and our own.
@@ -181,9 +186,14 @@ final class ScreenCornerMasks {
     /// Puts the corners on every screen with a camera notch (the 2021-and-later MacBook Pro
     /// and Air design: round top corners, square bottom ones).
     func refresh() {
-        windows.forEach { $0.close() }
+        windows.forEach { window in
+            SkyLightOperator.shared.undelegateWindow(window)
+            window.close()
+        }
         windows = []
         blackAreas = []
+        pointerMoved()  // shows the pointer again if it was hidden in a corner
+        guard Defaults[.roundBottomScreenCorners] else { return }
         for screen in NSScreen.screens where screen.safeAreaInsets.top > 0 {
             let radius = Self.cornerRadius(on: screen)
             guard radius > 0 else { continue }
@@ -246,6 +256,9 @@ final class ScreenCornerMasks {
         blackAreas.append(Self.maskPath(in: frame, corner: corner, radius: radius))
         view.layer?.addSublayer(shape)
         window.contentView = view
+        // The window server's own top layer, as the notch uses on the lock screen: above
+        // full-screen apps and the lock screen, on every Space.
+        SkyLightOperator.shared.delegateWindow(window)
         window.orderFrontRegardless()
         return window
     }
