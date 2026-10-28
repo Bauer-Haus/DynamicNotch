@@ -189,16 +189,31 @@ final class AudioLevelMonitor {
     private var _levels = [Float](repeating: 0, count: bandCount)
     private var _lastCallback: CFAbsoluteTime = 0
     private var _heardSignal = false
+    /// Samples of real audio since the first sound, up to one analysis window. The tap
+    /// starts with silence, and until a whole window of music has arrived the levels are
+    /// computed partly from that silence (too low, or a jump on some bars).
+    private var _signalSamples = 0
 
     /// Latest band levels, plus whether they are real (tap delivering actual audio).
     /// Shown as soon as they are computed: delaying them by the output device's reported
     /// latency (e.g. AirPods) made the bars trail the sound.
     func snapshot() -> (levels: [Float], isLive: Bool) {
         lock.lock(); defer { lock.unlock() }
-        // A denied permission still delivers buffers, but they are all zeros. Until any
-        // non-silent audio has arrived, report not-live so the view keeps animating.
+        // A denied permission still delivers buffers, but they are all zeros. Until a full
+        // analysis window of real audio has arrived, report not-live so the view waits.
         let fresh = CFAbsoluteTimeGetCurrent() - _lastCallback < 0.5
-        return (_levels, fresh && _heardSignal)
+        return (_levels, fresh && _heardSignal && _signalSamples >= SpectrumAnalyzer.fftSize)
+    }
+
+    /// Wakes Core Audio on the monitor's queue without capturing anything (no recording
+    /// indicator). The first call into it takes ~70-80 ms; done at launch, that overlaps the
+    /// wait for the player's first report, so a tap started moments later sets up in ~20 ms
+    /// instead of ~90.
+    func prepare() {
+        queue.async {
+            _ = Self.defaultOutputDeviceUID()
+            _ = Self.ownProcessObject()
+        }
     }
 
     /// A view wants live levels. Balanced with `release()`.
@@ -206,8 +221,8 @@ final class AudioLevelMonitor {
         queue.async { [weak self] in
             guard let self else { return }
             self.users += 1
-            self.observeOutputDevice()
             self.startLocked()
+            self.observeOutputDevice()
         }
     }
 
@@ -374,6 +389,7 @@ final class AudioLevelMonitor {
         _levels = [Float](repeating: 0, count: Self.bandCount)
         _lastCallback = 0
         _heardSignal = false
+        _signalSamples = 0
         lock.unlock()
     }
 
@@ -411,9 +427,13 @@ final class AudioLevelMonitor {
             }
         }
 
+        let channelsPerBuffer = buffers.count > 1 ? 1 : max(1, Int(first.mNumberChannels))
+        let framesThisCallback = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channelsPerBuffer
+
         lock.lock()
         _lastCallback = CFAbsoluteTimeGetCurrent()
         if peak > 1e-6 { _heardSignal = true }
+        if _heardSignal && _signalSamples < SpectrumAnalyzer.fftSize { _signalSamples += framesThisCallback }
         if analysed { _levels = analyzer.levels }
         lock.unlock()
     }
@@ -707,12 +727,15 @@ class AudioSpectrum: NSView {
         let (live, isLive) = AudioLevelMonitor.shared.snapshot()
 
         if isLive {
+            // The first live frame after starting puts the bars straight at their measured
+            // heights (they were resting as dots); after that they glide as usual.
+            let snap = !heardLive
             heardLive = true
             // Exponential smoothing, the same up and down: bars glide like the iPhone's
             // instead of twitching between analyses (~50 ms to half height on a hit).
             let dt = min(0.1, max(0, now - lastTick))
             for i in levels.indices where i < live.count {
-                levels[i] = Self.smoothed(levels[i], toward: CGFloat(live[i]), dt: dt)
+                levels[i] = snap ? CGFloat(live[i]) : Self.smoothed(levels[i], toward: CGFloat(live[i]), dt: dt)
                 targets[i] = levels[i]
             }
             lastTick = now

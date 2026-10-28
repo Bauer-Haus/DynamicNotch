@@ -220,6 +220,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Unit tests run inside the app; they only need the code, not the notch windows.
         if Self.isRunningTests { return }
 
+        // Get Core Audio ready while the player is first asked what's playing, so the
+        // waveform can start straight away if music is already on.
+        AudioLevelMonitor.shared.prepare()
+
         takeOverFromOtherCopies()
 
         // Start tracking display sleep now, so it's known even if music starts while asleep.
