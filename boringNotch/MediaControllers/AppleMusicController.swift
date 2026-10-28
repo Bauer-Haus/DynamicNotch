@@ -107,11 +107,11 @@ class AppleMusicController: MediaControllerProtocol {
     }
     
     func setVolume(_ level: Double) async {
+        // The notch already shows the new level; a full status query after every step of a
+        // slider drag only queued up behind other commands.
         let clampedLevel = max(0.0, min(1.0, level))
         let volumePercentage = Int(clampedLevel * 100)
         await executeCommand("set sound volume to \(volumePercentage)")
-        try? await Task.sleep(for: .milliseconds(150))
-        await updatePlaybackInfo()
     }
     
     func isActive() -> Bool {
@@ -132,7 +132,44 @@ class AppleMusicController: MediaControllerProtocol {
         await updatePlaybackInfo()
     }
     
+    /// One status query at a time, plus at most one waiting: each takes ~100 ms and only the
+    /// newest answer matters, so a burst of requests no longer stacks up ahead of commands.
+    private let updateLock = NSLock()
+    private var updateRunning = false
+    private var updateRequested = false
+
     func updatePlaybackInfo() async {
+        guard startUpdate() else { return }
+        repeat {
+            await performPlaybackInfoUpdate()
+        } while runUpdateAgain()
+    }
+
+    /// True if this call should run the query; false if one is running (it will run again).
+    private func startUpdate() -> Bool {
+        updateLock.withLock {
+            if updateRunning {
+                updateRequested = true
+                return false
+            }
+            updateRunning = true
+            return true
+        }
+    }
+
+    /// True if another request came in while the query ran.
+    private func runUpdateAgain() -> Bool {
+        updateLock.withLock {
+            if updateRequested {
+                updateRequested = false
+                return true
+            }
+            updateRunning = false
+            return false
+        }
+    }
+
+    private func performPlaybackInfoUpdate() async {
         guard let descriptor = try? await fetchPlaybackInfoAsync() else { return }
         guard descriptor.numberOfItems >= 11 else { return }
         var updatedState = self.playbackState

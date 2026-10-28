@@ -14,6 +14,12 @@ let defaultImage: NSImage = .init(
     accessibilityDescription: "Album Art"
 )!
 
+/// A value the notch shows straight after a button press, until the player confirms it.
+struct PendingValue<T: Equatable>: Equatable {
+    var value: T
+    var until: Date
+}
+
 @MainActor
 class MusicManager: ObservableObject {
     // MARK: - Properties
@@ -68,6 +74,53 @@ class MusicManager: ObservableObject {
     private var lastArtworkArtist: String = "Me"
     private var lastArtworkAlbum: String = "Self Love"
     private var lastArtworkBundleIdentifier: String? = nil
+
+    // MARK: Instant feedback
+    // Controls change the notch at once; the player's own report follows 30-250 ms later.
+    // Until it confirms (or `optimisticHold` passes), reports that still show the old value
+    // are stale and ignored, so the button doesn't flick back.
+    nonisolated static let optimisticHold: TimeInterval = 1.5
+    private var pendingPlaying: PendingValue<Bool>?
+    private var pendingShuffle: PendingValue<Bool>?
+    private var pendingRepeat: PendingValue<RepeatMode>?
+    private var pendingFavorite: PendingValue<Bool>?
+    private var pendingVolume: PendingValue<Int>?
+    /// The player's last report, and a check that falls back to it if a press is never
+    /// confirmed (player not running, command ignored).
+    private var lastReportedState: PlaybackState?
+    private var confirmationCheck: Task<Void, Never>?
+    /// Latest volume waiting to be sent; only the newest matters while dragging.
+    private var volumeTarget: Double?
+    private var volumeSending = false
+
+    private func scheduleConfirmationCheck() {
+        confirmationCheck?.cancel()
+        confirmationCheck = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.optimisticHold + 0.1))
+            guard let self, !Task.isCancelled else { return }
+            self.forceUpdate()
+            if let last = self.lastReportedState { self.updateFromPlaybackState(last) }
+        }
+    }
+
+    /// What to show for a value the player just reported, given a recent button press.
+    nonisolated static func reconcile<T: Equatable>(
+        reported: T, pending: PendingValue<T>?, now: Date
+    ) -> (shown: T, pending: PendingValue<T>?) {
+        guard let pending, now < pending.until else { return (reported, nil) }
+        if reported == pending.value { return (reported, nil) }   // confirmed
+        return (pending.value, pending)                           // stale report
+    }
+
+    /// Repeat after one press: Spotify only has off and all; the others cycle off, all, one.
+    nonisolated static func nextRepeatMode(after mode: RepeatMode, offAndAllOnly: Bool) -> RepeatMode {
+        if offAndAllOnly { return mode == .off ? .all : .off }
+        switch mode {
+        case .off: return .all
+        case .all: return .one
+        case .one: return .off
+        }
+    }
 
     @Published var isFlipping: Bool = false
     private var flipWorkItem: DispatchWorkItem?
@@ -203,7 +256,26 @@ class MusicManager: ObservableObject {
 
     // MARK: - Update Methods
     @MainActor
-    private func updateFromPlaybackState(_ state: PlaybackState) {
+    private func updateFromPlaybackState(_ reported: PlaybackState) {
+        lastReportedState = reported
+        var state = reported
+        let now = Date()
+        let playing = Self.reconcile(reported: state.isPlaying, pending: pendingPlaying, now: now)
+        state.isPlaying = playing.shown
+        pendingPlaying = playing.pending
+        let shuffle = Self.reconcile(reported: state.isShuffled, pending: pendingShuffle, now: now)
+        state.isShuffled = shuffle.shown
+        pendingShuffle = shuffle.pending
+        let repeatMode = Self.reconcile(reported: state.repeatMode, pending: pendingRepeat, now: now)
+        state.repeatMode = repeatMode.shown
+        pendingRepeat = repeatMode.pending
+        let favorite = Self.reconcile(reported: state.isFavorite, pending: pendingFavorite, now: now)
+        state.isFavorite = favorite.shown
+        pendingFavorite = favorite.pending
+        let volume = Self.reconcile(reported: Int((state.volume * 100).rounded()), pending: pendingVolume, now: now)
+        if volume.pending != nil { state.volume = self.volume }
+        pendingVolume = volume.pending
+
         // Check for playback state changes (playing/paused)
         if state.isPlaying != self.isPlaying {
             NSLog("Playback state changed: \(state.isPlaying ? "Playing" : "Paused")")
@@ -352,6 +424,9 @@ class MusicManager: ObservableObject {
         guard canFavoriteTrack else { return }
         guard let controller = activeController else { return }
 
+        isFavoriteTrack = favorite
+        pendingFavorite = PendingValue(value: favorite, until: Date().addingTimeInterval(Self.optimisticHold))
+        scheduleConfirmationCheck()
         Task { @MainActor in
             await controller.setFavorite(favorite)
             try? await Task.sleep(for: .milliseconds(150))
@@ -631,38 +706,63 @@ class MusicManager: ObservableObject {
 
     // MARK: - Public Methods for controlling playback
     func playPause() {
-        Task {
-            await activeController?.togglePlay()
-        }
+        togglePlay()
     }
 
     func play() {
+        showPlaying(true)
         Task {
             await activeController?.play()
         }
     }
 
     func pause() {
+        showPlaying(false)
         Task {
             await activeController?.pause()
         }
     }
 
+    func togglePlay() {
+        showPlaying(!isPlaying)
+        Task {
+            await activeController?.togglePlay()
+        }
+    }
+
+    /// Flips play/pause in the notch at once, freezing or restarting the progress bar from
+    /// where it is now.
+    private func showPlaying(_ playing: Bool) {
+        guard activeController != nil else { return }
+        let now = Date()
+        elapsedTime = estimatedPlaybackPosition(at: now)
+        timestampDate = now
+        pendingPlaying = PendingValue(value: playing, until: now.addingTimeInterval(Self.optimisticHold))
+        scheduleConfirmationCheck()
+        guard playing != isPlaying else { return }
+        withAnimation(.smooth) {
+            isPlaying = playing
+            updateIdleState(state: playing)
+        }
+    }
+
     func toggleShuffle() {
+        guard activeController != nil else { return }
+        isShuffled.toggle()
+        pendingShuffle = PendingValue(value: isShuffled, until: Date().addingTimeInterval(Self.optimisticHold))
+        scheduleConfirmationCheck()
         Task {
             await activeController?.toggleShuffle()
         }
     }
 
     func toggleRepeat() {
+        guard let controller = activeController else { return }
+        repeatMode = Self.nextRepeatMode(after: repeatMode, offAndAllOnly: controller is SpotifyController)
+        pendingRepeat = PendingValue(value: repeatMode, until: Date().addingTimeInterval(Self.optimisticHold))
+        scheduleConfirmationCheck()
         Task {
-            await activeController?.toggleRepeat()
-        }
-    }
-    
-    func togglePlay() {
-        Task {
-            await activeController?.togglePlay()
+            await controller.toggleRepeat()
         }
     }
 
@@ -688,11 +788,25 @@ class MusicManager: ObservableObject {
         seek(to: newPos)
     }
     
+    /// Shows the new volume at once and sends only the latest level: while the slider is
+    /// dragged, levels that a newer one replaced before being sent are skipped.
     func setVolume(to level: Double) {
-        if let controller = activeController {
-            Task {
-                await controller.setVolume(level)
+        guard let controller = activeController else { return }
+        let clamped = max(0, min(1, level))
+        volume = clamped
+        // Players are sent whole percent, dropping the fraction (45.7% -> 45).
+        pendingVolume = PendingValue(value: Int(clamped * 100),
+                                     until: Date().addingTimeInterval(Self.optimisticHold))
+        scheduleConfirmationCheck()
+        volumeTarget = clamped
+        guard !volumeSending else { return }
+        volumeSending = true
+        Task { @MainActor in
+            while let target = self.volumeTarget {
+                self.volumeTarget = nil
+                await controller.setVolume(target)
             }
+            self.volumeSending = false
         }
     }
     func openMusicApp() {
