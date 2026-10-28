@@ -262,75 +262,44 @@ struct MusicSlotConfigurationView: View {
         return musicControlSlots[index]
     }
 
-    private func handleDrop(_ providers: [NSItemProvider], toIndex: Int) -> Bool {
-        for provider in providers {
-            if provider.canLoadObject(ofClass: NSString.self) {
-                provider.loadObject(ofClass: NSString.self) { item, error in
-                    // item may be an NSString (which conforms to NSItemProviderReading) or other reading type
-                    if let nsstring = item as? NSString {
-                        let raw = nsstring as String
-                        DispatchQueue.main.async {
-                            processDropString(raw, toIndex: toIndex)
-                        }
-                    } else if let str = item as? String {
-                        DispatchQueue.main.async {
-                            processDropString(str, toIndex: toIndex)
-                        }
-                    }
-                }
-                return true
-            }
+    /// Reads the dragged text ("slot:3" or "control:shuffle") and hands it over on the main
+    /// thread. False if nothing in the drop is text.
+    private func loadDraggedText(_ providers: [NSItemProvider], then handle: @escaping (String) -> Void) -> Bool {
+        guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
+        provider.loadObject(ofClass: NSString.self) { item, _ in
+            // item may be an NSString or another reading type
+            guard let text = (item as? NSString).map({ $0 as String }) ?? (item as? String) else { return }
+            DispatchQueue.main.async { handle(text) }
         }
-        return false
+        return true
+    }
+
+    /// The slot a dragged "slot:<index>" came from, if it is a real slot.
+    private func draggedSlot(_ text: String) -> Int? {
+        guard text.hasPrefix("slot:"), let from = Int(text.dropFirst("slot:".count)),
+              from >= 0, from < fixedSlotCount, from < musicControlSlots.count else { return nil }
+        return from
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider], toIndex: Int) -> Bool {
+        loadDraggedText(providers) { processDropString($0, toIndex: toIndex) }
     }
 
     private func handleDropOnTrash(_ providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
-            if provider.canLoadObject(ofClass: NSString.self) {
-                provider.loadObject(ofClass: NSString.self) { item, error in
-                    if let nsstring = item as? NSString {
-                        let raw = nsstring as String
-                        DispatchQueue.main.async {
-                            if raw.hasPrefix("slot:") {
-                                // parse source slot index and clear it
-                                let from = Int(raw.replacingOccurrences(of: "slot:", with: "")) ?? -1
-                                guard from >= 0 && from < fixedSlotCount else { return }
-                                var slots = musicControlSlots
-                                if from < slots.count {
-                                    slots[from] = .none
-                                    musicControlSlots = slots
-                                }
-                            }
-                        }
-                    } else if let str = item as? String {
-                        DispatchQueue.main.async {
-                            if str.hasPrefix("slot:") {
-                                let from = Int(str.replacingOccurrences(of: "slot:", with: "")) ?? -1
-                                guard from >= 0 && from < fixedSlotCount else { return }
-                                var slots = musicControlSlots
-                                if from < slots.count {
-                                    slots[from] = .none
-                                    musicControlSlots = slots
-                                }
-                            }
-                        }
-                    }
-                }
-                return true
-            }
+        loadDraggedText(providers) { text in
+            guard let from = draggedSlot(text) else { return }
+            var slots = musicControlSlots
+            slots[from] = .none
+            musicControlSlots = slots
         }
-        return false
     }
 
     private func processDropString(_ raw: String, toIndex: Int) {
         if raw.hasPrefix("slot:") {
-            let from = Int(raw.replacingOccurrences(of: "slot:", with: "")) ?? -1
-            guard from >= 0 && from < fixedSlotCount else { return }
+            guard let from = draggedSlot(raw), toIndex < musicControlSlots.count else { return }
             var slots = musicControlSlots
-            if from < slots.count && toIndex < slots.count {
-                slots.swapAt(from, toIndex)
-                musicControlSlots = slots
-            }
+            slots.swapAt(from, toIndex)
+            musicControlSlots = slots
         } else if raw.hasPrefix("control:") {
             let val = raw.replacingOccurrences(of: "control:", with: "")
             if let control = MusicControlButton(rawValue: val) {
