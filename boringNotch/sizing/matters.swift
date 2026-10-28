@@ -11,30 +11,61 @@ import SwiftUI
 
 let downloadSneakSize: CGSize = .init(width: 65, height: 1)
 
-/// The open player's sizes are the iPhone's expanded Dynamic Island (measured, about 2:1)
-/// times this. 1.0 matched the iPhone's look on a desktop monitor but felt big next to
-/// macOS's 13-17 pt interface text and covered ~38% of a 14" MacBook screen.
-let openPlayerScale: CGFloat = 0.8
+/// The open player, matched to Apple's own MacBook Dynamic Island. Measured from Apple's
+/// picture of it on the same wallpaper as a screenshot of this app, scaled so the wallpaper's
+/// stripes line up (1.198, matched three ways): an island 285 x 152 pt. Distances below the
+/// camera are from the top of the album art, which sits just under the camera housing.
+enum OpenPlayer {
+    static let islandWidth: CGFloat = 285
+    /// Island edge to the art, the times and the controls.
+    static let sideInset: CGFloat = 16
+    static let artSize: CGFloat = 50
+    static let artCornerRadius: CGFloat = 10
+    static let artToText: CGFloat = 9
+    /// Title and artist; Apple's capitals are 10.2 pt tall.
+    static let textSize: CGFloat = 13.5
+    /// Title to artist, capital to capital.
+    static let textLineHeight: CGFloat = 16.7
+    /// The live waveform beside the title, as tall as its capitals.
+    static let waveformSize = CGSize(width: 21.5, height: 11)
+    static let waveformTop: CGFloat = 20
+    /// The progress row: its bar's centre is 19.8 pt below the art.
+    static let progressHeight: CGFloat = 16
+    static let progressTop: CGFloat = 10.9
+    static let timeSize: CGFloat = 10.5
+    static let timeToBar: CGFloat = 5.4
+    static let barThickness: CGFloat = 5.3
+    static let barDrop: CGFloat = 3.7
+    /// The controls' centres are 105.6 pt below the top of the art.
+    static let controlsTop: CGFloat = 9.9
+    static let controlsSideInset: CGFloat = 4
+    /// Art top to the island's bottom edge: 136.4 pt.
+    static let bottomInset: CGFloat = 12
+    static let bottomCornerRadius: CGFloat = 36
+    /// The press circle behind a control (the iPhone's, sized to these controls).
+    static let pressCircle: CGFloat = 50
+    /// The open island's shadow (fitted to the iPhone's).
+    static let shadowRadius: CGFloat = 19.2
+}
 
 /// Where the notch meets the top of the screen its corners curve like the hardware notch's
 /// own corners: ~8 pt, measured from a photo of a 14" MacBook Pro (8.0 and 8.7 pt by two
 /// methods). Closed and open, so the corners don't change size as the notch opens.
 let notchTopCornerRadius: CGFloat = 8
 
-/// 540 x 266 pt at full scale, plus the top corners on each side.
-let openNotchSize: CGSize = .init(width: 540 * openPlayerScale + 2 * notchTopCornerRadius, height: 266 * openPlayerScale)
+/// Apple's island plus the top corners on each side; 32 pt for the camera housing, then 136.4 pt.
+let openNotchSize: CGSize = .init(width: OpenPlayer.islandWidth + 2 * notchTopCornerRadius, height: 168)
 /// Room around the open island for its shadow, which fades out by ~40 pt below it (fitted to the
-/// iPhone's, scaled like the rest of the player). The content sits a few pt below the open
-/// size, so this leaves room for it to fade out completely (measured on screen).
+/// iPhone's), with some to spare so it fades out completely (measured on screen).
 let islandShadowMargin: CGFloat = 60
 /// The window is the open island plus room for its shadow. What's outside the island is
 /// see-through and passes clicks through.
 let windowSize: CGSize = .init(width: openNotchSize.width + 2 * islandShadowMargin, height: openNotchSize.height + islandShadowMargin)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: 52 * openPlayerScale), closed: (top: notchTopCornerRadius, bottom: 14))
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: OpenPlayer.bottomCornerRadius), closed: (top: notchTopCornerRadius, bottom: 14))
 
 enum MusicPlayerImageSizes {
-    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 17 * openPlayerScale, closed: 4.0)
-    static let size = (opened: CGSize(width: 86 * openPlayerScale, height: 86 * openPlayerScale), closed: CGSize(width: 20, height: 20))
+    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: OpenPlayer.artCornerRadius, closed: 4.0)
+    static let size = (opened: CGSize(width: OpenPlayer.artSize, height: OpenPlayer.artSize), closed: CGSize(width: 20, height: 20))
 }
 
 /// The screen the notch is on: the one with this UUID, or the main screen if none is given.

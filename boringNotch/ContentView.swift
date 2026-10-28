@@ -106,9 +106,9 @@ struct ContentView: View {
                         ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
                         : cornerRadiusInsets.closed.bottom
                     )
-                    // Open: the iPhone island's margins (28 pt at the sides, 24 pt below), scaled.
-                    .padding(.horizontal, vm.notchState == .open ? 28 * openPlayerScale : 0)
-                    .padding(.bottom, vm.notchState == .open ? 24 * openPlayerScale : 0)
+                    // Open: the margins of Apple's MacBook island.
+                    .padding(.horizontal, vm.notchState == .open ? OpenPlayer.sideInset : 0)
+                    .padding(.bottom, vm.notchState == .open ? OpenPlayer.bottomInset : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
@@ -126,7 +126,7 @@ struct ContentView: View {
                         color: !Defaults[.enableShadow] ? .clear
                             : vm.notchState == .open ? .black.opacity(0.85)
                             : isHovering ? .black.opacity(0.7) : .clear,
-                        radius: vm.notchState == .open ? 24 * openPlayerScale
+                        radius: vm.notchState == .open ? OpenPlayer.shadowRadius
                             : Defaults[.cornerRadiusScaling] ? 6 : 4
                     )
                     .padding(

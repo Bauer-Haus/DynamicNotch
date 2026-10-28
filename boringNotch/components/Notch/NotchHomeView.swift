@@ -18,29 +18,31 @@ struct MusicPlayerView: View {
     let albumArtNamespace: Namespace.ID
 
     var body: some View {
-        // Laid out like the iPhone's expanded Dynamic Island: cover, song and live waveform
-        // on top, a full-width progress bar, then a full-width row of controls.
+        // Laid out like Apple's Dynamic Island: cover, song and live waveform on top, a
+        // full-width progress bar, then a full-width row of controls (sizes: `OpenPlayer`).
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 0) {
                 AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace)
                     .frame(width: MusicPlayerImageSizes.size.opened.width,
                            height: MusicPlayerImageSizes.size.opened.height)
                 SongInfoView()
-                    .padding(.leading, 27 * openPlayerScale)
+                    .padding(.leading, OpenPlayer.artToText)
                     .drawingGroup()
                     .compositingGroup()
-                AlbumWaveform(width: 35 * openPlayerScale, height: 28 * openPlayerScale)
+                AlbumWaveform(width: OpenPlayer.waveformSize.width, height: OpenPlayer.waveformSize.height)
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    // Level with the title's capitals.
+                    .padding(.top, OpenPlayer.waveformTop)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.leading, 12 * openPlayerScale)
+                    .padding(.leading, 8)
             }
             .frame(height: MusicPlayerImageSizes.size.opened.height)
 
             PlaybackProgressView()
-                .padding(.top, 26 * openPlayerScale)
+                .padding(.top, OpenPlayer.progressTop)
 
             MusicControlsView()
-                .padding(.top, 18 * openPlayerScale)
+                .padding(.top, OpenPlayer.controlsTop)
         }
     }
 }
@@ -126,15 +128,15 @@ struct SongInfoView: View {
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
                 MarqueeText(
                     $musicManager.songTitle,
-                    font: .system(size: 24 * openPlayerScale, weight: .semibold), nsFont: .title2,
-                    textColor: .white, frameWidth: width)
+                    font: .system(size: OpenPlayer.textSize, weight: .semibold), nsFont: .title2,
+                    textColor: .white, frameWidth: width, lineHeight: OpenPlayer.textLineHeight)
                 MarqueeText(
                     $musicManager.artistName,
-                    font: .system(size: 24 * openPlayerScale), nsFont: .title2,
-                    textColor: .gray, frameWidth: width)
+                    font: .system(size: OpenPlayer.textSize), nsFont: .title2,
+                    textColor: .gray, frameWidth: width, lineHeight: OpenPlayer.textLineHeight)
                 if enableLyrics {
                     // Only timed lyrics change during a song; otherwise nothing needs redrawing.
                     TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.syncedLyrics.isEmpty)) { timeline in
@@ -170,7 +172,8 @@ struct SongInfoView: View {
                     }
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .center)
+            // Apple sets the song low beside the art, the artist's baseline near its bottom.
+            .frame(maxHeight: .infinity, alignment: .bottom)
         }
     }
 }
@@ -200,7 +203,7 @@ struct PlaybackProgressView: View {
                 MusicManager.shared.seek(to: newValue)
             }
         }
-        .frame(height: 20 * openPlayerScale)
+        .frame(height: OpenPlayer.progressHeight)
     }
 }
 
@@ -218,7 +221,7 @@ struct MusicControlsView: View {
                 slotView(for: slot)
             }
         }
-        .padding(.horizontal, 15 * openPlayerScale)
+        .padding(.horizontal, OpenPlayer.controlsSideInset)
         .buttonStyle(PlainButtonStyle())
     }
 
@@ -469,7 +472,7 @@ struct MusicSliderView: View {
 
 
     var body: some View {
-        HStack(spacing: 11 * openPlayerScale) {
+        HStack(spacing: OpenPlayer.timeToBar) {
             Text(timeString(from: sliderValue))
                 .monospacedDigit()
             CustomSlider(
@@ -480,13 +483,15 @@ struct MusicSliderView: View {
                 dragging: $dragging,
                 lastDragged: $lastDragged,
                 onValueChange: onValueChange,
-                thickness: 8 * openPlayerScale
+                thickness: OpenPlayer.barThickness
             )
+            // Apple's bar sits a little below the middle of the times.
+            .offset(y: OpenPlayer.barDrop)
             // Time left, as on the iPhone (-3:49).
             Text("−" + timeString(from: max(0, duration - sliderValue)))
                 .monospacedDigit()
         }
-        .font(.system(size: 15 * openPlayerScale, weight: .medium))
+        .font(.system(size: OpenPlayer.timeSize, weight: .medium))
         .foregroundColor(.gray)
         .onChange(of: currentDate) {
            guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }

@@ -106,16 +106,15 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
         self == .playPause
     }
 
-    /// Icon size in the open notch: the iPhone's controls, times the open player's scale.
+    /// Icon size in the open notch. Play/pause and skip match Apple's MacBook island (glyphs
+    /// 27.6 pt and 27.6 x 16.2 pt tall); the others keep the iPhone's sizes relative to skip.
     var pointSize: CGFloat {
-        let iPhoneSize: CGFloat
         switch self {
-        case .playPause: iPhoneSize = 54
-        case .previous, .next: iPhoneSize = 40
-        case .favorite: iPhoneSize = 34
-        case .output: iPhoneSize = 32
-        default: iPhoneSize = 30
+        case .playPause: return 34
+        case .previous, .next: return 21.3
+        case .favorite: return 18
+        case .output: return 17
+        default: return 16
         }
-        return iPhoneSize * openPlayerScale
     }
 }

@@ -59,9 +59,9 @@ struct HoverButton: View {
 }
 
 /// The press feedback of the iPhone's expanded Dynamic Island, measured from a 120 fps
-/// recording: a dark grey circle (24/255, ~61 pt on the iPhone, ~80 pt at this island's
-/// scale) appears under the button and the icon shrinks to ~0.7x; on release the circle
-/// fades over 0.2 s, then the icon springs back with a small overshoot.
+/// recording: a dark grey circle (24/255, ~1.5x the play button) appears under the button and
+/// the icon shrinks to ~0.7x; on release the circle fades over 0.2 s, then the icon springs
+/// back with a small overshoot.
 struct IslandPressStyle: ButtonStyle {
     var enabled: Bool
     var hovering: Bool
@@ -74,7 +74,7 @@ struct IslandPressStyle: ButtonStyle {
         }
     }
 
-    static let circleDiameter: CGFloat = 80 * openPlayerScale
+    static let circleDiameter: CGFloat = OpenPlayer.pressCircle
     static let circleColor = Color(white: 24.0 / 255)
     static let pressedScale: CGFloat = 0.7
     static let fadeDuration: TimeInterval = 0.2

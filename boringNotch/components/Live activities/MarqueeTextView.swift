@@ -30,12 +30,14 @@ struct MarqueeText: View {
     let backgroundColor: Color
     let minDuration: Double
     let frameWidth: CGFloat
+    /// The line's height; by default 1.3x the `nsFont` style's size.
+    let lineHeight: CGFloat?
     
     @State private var animate = false
     @State private var textSize: CGSize = .zero
     @State private var offset: CGFloat = 0
     
-    init(_ text: Binding<String>, font: Font = .body, nsFont: NSFont.TextStyle = .body, textColor: Color = .primary, backgroundColor: Color = .clear, minDuration: Double = 3.0, frameWidth: CGFloat = 200) {
+    init(_ text: Binding<String>, font: Font = .body, nsFont: NSFont.TextStyle = .body, textColor: Color = .primary, backgroundColor: Color = .clear, minDuration: Double = 3.0, frameWidth: CGFloat = 200, lineHeight: CGFloat? = nil) {
         _text = text
         self.font = font
         self.nsFont = nsFont
@@ -43,6 +45,7 @@ struct MarqueeText: View {
         self.backgroundColor = backgroundColor
         self.minDuration = minDuration
         self.frameWidth = frameWidth
+        self.lineHeight = lineHeight
     }
     
     private var needsScrolling: Bool {
@@ -87,7 +90,7 @@ struct MarqueeText: View {
             .frame(width: frameWidth, alignment: .leading)
             .clipped()
         }
-        .frame(height: textSize.height * 1.3)
+        .frame(height: lineHeight ?? textSize.height * 1.3)
         
     }
 }
