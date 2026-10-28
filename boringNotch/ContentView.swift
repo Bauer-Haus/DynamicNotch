@@ -90,9 +90,9 @@ struct ContentView: View {
                         ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
                         : cornerRadiusInsets.closed.bottom
                     )
-                    // Open: the iPhone island's margins (28 pt at the sides, 24 pt below).
-                    .padding(.horizontal, vm.notchState == .open ? 28 : 0)
-                    .padding(.bottom, vm.notchState == .open ? 24 : 0)
+                    // Open: the iPhone island's margins (28 pt at the sides, 24 pt below), scaled.
+                    .padding(.horizontal, vm.notchState == .open ? 28 * openPlayerScale : 0)
+                    .padding(.bottom, vm.notchState == .open ? 24 * openPlayerScale : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
                     .overlay(alignment: .top) {

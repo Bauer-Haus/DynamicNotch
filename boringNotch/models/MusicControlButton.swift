@@ -106,14 +106,16 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
         self == .playPause
     }
 
-    /// Icon size in the open notch, matching the iPhone's controls.
+    /// Icon size in the open notch: the iPhone's controls, times the open player's scale.
     var pointSize: CGFloat {
+        let iPhoneSize: CGFloat
         switch self {
-        case .playPause: return 54
-        case .previous, .next: return 40
-        case .favorite: return 34
-        case .output: return 32
-        default: return 30
+        case .playPause: iPhoneSize = 54
+        case .previous, .next: iPhoneSize = 40
+        case .favorite: iPhoneSize = 34
+        case .output: iPhoneSize = 32
+        default: iPhoneSize = 30
         }
+        return iPhoneSize * openPlayerScale
     }
 }

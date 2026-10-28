@@ -26,21 +26,21 @@ struct MusicPlayerView: View {
                     .frame(width: MusicPlayerImageSizes.size.opened.width,
                            height: MusicPlayerImageSizes.size.opened.height)
                 SongInfoView()
-                    .padding(.leading, 27)
+                    .padding(.leading, 27 * openPlayerScale)
                     .drawingGroup()
                     .compositingGroup()
-                AlbumWaveform(width: 35, height: 28)
+                AlbumWaveform(width: 35 * openPlayerScale, height: 28 * openPlayerScale)
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.leading, 12)
+                    .padding(.leading, 12 * openPlayerScale)
             }
             .frame(height: MusicPlayerImageSizes.size.opened.height)
 
             PlaybackProgressView()
-                .padding(.top, 26)
+                .padding(.top, 26 * openPlayerScale)
 
             MusicControlsView()
-                .padding(.top, 18)
+                .padding(.top, 18 * openPlayerScale)
         }
     }
 }
@@ -130,11 +130,11 @@ struct SongInfoView: View {
             VStack(alignment: .leading, spacing: 2) {
                 MarqueeText(
                     $musicManager.songTitle,
-                    font: .system(size: 24, weight: .semibold), nsFont: .title1,
+                    font: .system(size: 24 * openPlayerScale, weight: .semibold), nsFont: .title2,
                     textColor: .white, frameWidth: width)
                 MarqueeText(
                     $musicManager.artistName,
-                    font: .system(size: 24), nsFont: .title1,
+                    font: .system(size: 24 * openPlayerScale), nsFont: .title2,
                     textColor: .gray, frameWidth: width)
                 if enableLyrics {
                     // Only timed lyrics change during a song; otherwise nothing needs redrawing.
@@ -202,7 +202,7 @@ struct PlaybackProgressView: View {
                 MusicManager.shared.seek(to: newValue)
             }
         }
-        .frame(height: 20)
+        .frame(height: 20 * openPlayerScale)
     }
 }
 
@@ -220,7 +220,7 @@ struct MusicControlsView: View {
                 slotView(for: slot)
             }
         }
-        .padding(.horizontal, 15)
+        .padding(.horizontal, 15 * openPlayerScale)
         .buttonStyle(PlainButtonStyle())
     }
 
@@ -253,19 +253,19 @@ struct MusicControlsView: View {
     private func slotView(for slot: MusicControlButton) -> some View {
         switch slot {
         case .shuffle:
-            HoverButton(icon: "shuffle", iconColor: musicManager.isShuffled ? .systemAccent : .primary, scale: .medium, pointSize: slot.pointSize) {
+            HoverButton(icon: "shuffle", iconColor: musicManager.isShuffled ? .systemAccent : .white, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.toggleShuffle()
             }
         case .previous:
-            HoverButton(icon: "backward.fill", scale: .medium, pointSize: slot.pointSize) {
+            HoverButton(icon: "backward.fill", iconColor: .white, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.previousTrack()
             }
         case .playPause:
-            HoverButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", scale: .large, pointSize: slot.pointSize) {
+            HoverButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", iconColor: .white, scale: .large, pointSize: slot.pointSize) {
                 MusicManager.shared.togglePlay()
             }
         case .next:
-            HoverButton(icon: "forward.fill", scale: .medium, pointSize: slot.pointSize) {
+            HoverButton(icon: "forward.fill", iconColor: .white, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.nextTrack()
             }
         case .repeatMode:
@@ -277,11 +277,11 @@ struct MusicControlsView: View {
         case .favorite:
             FavoriteControlButton()
         case .goBackward:
-            HoverButton(icon: "gobackward.15", scale: .medium, pointSize: slot.pointSize) {
+            HoverButton(icon: "gobackward.15", iconColor: .white, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.skip(seconds: -15)
             }
         case .goForward:
-            HoverButton(icon: "goforward.15", scale: .medium, pointSize: slot.pointSize) {
+            HoverButton(icon: "goforward.15", iconColor: .white, scale: .medium, pointSize: slot.pointSize) {
                 MusicManager.shared.skip(seconds: 15)
             }
         case .output:
@@ -305,7 +305,7 @@ struct MusicControlsView: View {
     private var repeatIconColor: Color {
         switch musicManager.repeatMode {
         case .off:
-            return .primary
+            return .white
         case .all, .one:
             return .systemAccent
         }
@@ -472,7 +472,7 @@ struct MusicSliderView: View {
 
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 11 * openPlayerScale) {
             Text(timeString(from: sliderValue))
                 .monospacedDigit()
             CustomSlider(
@@ -484,13 +484,13 @@ struct MusicSliderView: View {
                 dragging: $dragging,
                 lastDragged: $lastDragged,
                 onValueChange: onValueChange,
-                thickness: 8
+                thickness: 8 * openPlayerScale
             )
             // Time left, as on the iPhone (-3:49).
             Text("−" + timeString(from: max(0, duration - sliderValue)))
                 .monospacedDigit()
         }
-        .font(.system(size: 15, weight: .medium))
+        .font(.system(size: 15 * openPlayerScale, weight: .medium))
         .foregroundColor(.gray)
         .onChange(of: currentDate) {
            guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }

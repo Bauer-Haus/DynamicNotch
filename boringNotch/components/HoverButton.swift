@@ -30,7 +30,7 @@ struct HoverButton: View {
     @State private var isHovering = false
 
     var body: some View {
-        let size = pointSize.map { max(30, $0 * 1.1) } ?? CGFloat(scale == .large ? 40 : 30)
+        let size = pointSize.map { max(24, $0 * 1.1) } ?? CGFloat(scale == .large ? 40 : 30)
 
         Button(action: action) {
             Rectangle()
@@ -74,7 +74,7 @@ struct IslandPressStyle: ButtonStyle {
         }
     }
 
-    static let circleDiameter: CGFloat = 80
+    static let circleDiameter: CGFloat = 80 * openPlayerScale
     static let circleColor = Color(white: 24.0 / 255)
     static let pressedScale: CGFloat = 0.7
     static let fadeDuration: TimeInterval = 0.2

@@ -12,15 +12,19 @@ import SwiftUI
 let downloadSneakSize: CGSize = .init(width: 65, height: 1)
 
 let shadowPadding: CGFloat = 20
-/// Shaped like the iPhone's expanded Dynamic Island (about 2:1): 540 pt wide plus the
-/// 14 pt flares where the notch meets the top edge.
-let openNotchSize: CGSize = .init(width: 568, height: 266)
+/// The open player's sizes are the iPhone's expanded Dynamic Island (measured, about 2:1)
+/// times this. 1.0 matched the iPhone's look on a desktop monitor but felt big next to
+/// macOS's 13-17 pt interface text and covered ~38% of a 14" MacBook screen.
+let openPlayerScale: CGFloat = 0.8
+
+/// 540 x 266 pt at full scale, plus the flares where the notch meets the top edge.
+let openNotchSize: CGSize = .init(width: (540 + 2 * 14) * openPlayerScale, height: 266 * openPlayerScale)
 let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 14, bottom: 52), closed: (top: 6, bottom: 14))
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 14 * openPlayerScale, bottom: 52 * openPlayerScale), closed: (top: 6, bottom: 14))
 
 enum MusicPlayerImageSizes {
-    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 17.0, closed: 4.0)
-    static let size = (opened: CGSize(width: 86, height: 86), closed: CGSize(width: 20, height: 20))
+    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 17 * openPlayerScale, closed: 4.0)
+    static let size = (opened: CGSize(width: 86 * openPlayerScale, height: 86 * openPlayerScale), closed: CGSize(width: 20, height: 20))
 }
 
 /// The screen the notch is on: the one with this UUID, or the main screen if none is given.
