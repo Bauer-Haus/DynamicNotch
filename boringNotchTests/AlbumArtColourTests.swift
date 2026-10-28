@@ -21,9 +21,9 @@ struct AlbumArtColourTests {
         return image
     }
 
-    private func backdrop(of image: NSImage) async -> (NSImage?, CGFloat) {
+    private func backdrop(of image: NSImage) async -> NSImage? {
         await withCheckedContinuation { continuation in
-            image.visualizerBackdrop { continuation.resume(returning: ($0, $1)) }
+            image.visualizerBackdrop { continuation.resume(returning: $0) }
         }
     }
 
@@ -39,17 +39,16 @@ struct AlbumArtColourTests {
     // MARK: Brightness floor
 
     @Test func blackCoverGivesLightGreyBars() async throws {
-        let (image, luminance) = await backdrop(of: cover(0, 0, 0))
+        let image = await backdrop(of: cover(0, 0, 0))
         let pixel = try centre(of: try #require(image))
         // The iPhone shows about (99, 100, 106) for a black cover.
         let floor = Int(NSImage.minimumBarBrightness)
         #expect(abs(pixel.r - floor) <= 3 && abs(pixel.g - floor) <= 3 && abs(pixel.b - floor) <= 3, "\(pixel)")
-        #expect(luminance < 0.02)
     }
 
     @Test func colourfulCoverKeepsItsColour() async throws {
         // Orange, like the World a Music cover's shirt.
-        let (image, _) = await backdrop(of: cover(0.85, 0.5, 0.15))
+        let image = await backdrop(of: cover(0.85, 0.5, 0.15))
         let pixel = try centre(of: try #require(image))
         #expect(pixel.r > pixel.g && pixel.g > pixel.b, "still orange: \(pixel)")
         #expect(pixel.r > Int(NSImage.minimumBarBrightness), "above the floor, so not lifted")
@@ -64,36 +63,53 @@ struct AlbumArtColourTests {
         #expect(pixels[3] == 255 && pixels[7] == 255)        // alpha untouched
     }
 
-    @Test func averageLuminance() {
-        #expect(NSImage.averageLuminance(rgba: [0, 0, 0, 255]) == 0)
-        #expect(abs(NSImage.averageLuminance(rgba: [255, 255, 255, 255]) - 1) < 0.0001)
-        #expect(NSImage.averageLuminance(rgba: []) == 0)
+    // MARK: Black level of the cover itself
+
+    /// One pixel through the black-level lift.
+    private func lifted(_ r: UInt8, _ g: UInt8, _ b: UInt8, alpha: UInt8 = 255) -> [UInt8] {
+        var p: [UInt8] = [r, g, b, alpha]
+        AlbumArtLook.raiseBlackLevel(rgba: &p)
+        return p
     }
 
-    // MARK: Dark cover lift
-
-    @Test func blackCoverIsDrawnAsDarkGrey() {
-        // Pure black shows as ~28/255 on the iPhone, a lift of ~0.1.
-        #expect(abs(NSImage.darkArtLift(averageLuminance: 0) - 0.1) < 0.001)
+    @Test func blackBecomesDarkGreyLikeTheIPhone() {
+        #expect(lifted(0, 0, 0) == [20, 20, 20, 255])      // iPhone: ~20 for a pure black cover
     }
 
-    @Test func normalCoversAreNotChanged() {
-        for luminance in stride(from: CGFloat(0.2), through: 1, by: 0.1) {
-            #expect(NSImage.darkArtLift(averageLuminance: luminance) == 0)
-        }
+    @Test func nearBlackMatchesTheMeasuredCover() {
+        #expect(lifted(8, 8, 8)[0] == 27)                  // The Business: ~8 showed as ~27
     }
 
-    @Test func liftFadesOutAsCoversGetBrighter() {
-        var previous = NSImage.darkArtLift(averageLuminance: 0)
-        for luminance in stride(from: CGFloat(0.01), through: 0.3, by: 0.01) {
-            let lift = NSImage.darkArtLift(averageLuminance: luminance)
-            #expect(lift <= previous)
-            previous = lift
-        }
+    @Test func whiteAndHighlightsStayBright() {
+        #expect(lifted(255, 255, 255) == [255, 255, 255, 255])
     }
 
-    @Test func midToneCoverIsNotLifted() async {
-        let (_, luminance) = await backdrop(of: cover(0.5, 0.5, 0.5))
-        #expect(NSImage.darkArtLift(averageLuminance: luminance) == 0, "luminance \(luminance)")
+    @Test func midTonesBarelyChange() {
+        #expect(lifted(128, 128, 128)[0] == 138)           // 20 + 128 x 235/255
+    }
+
+    @Test func coloursKeepTheirHue() {
+        let p = lifted(200, 100, 0)
+        #expect(p[0] == 204 && p[1] == 112 && p[2] == 20)
+    }
+
+    @Test func transparentPixelsStayTransparent() {
+        #expect(lifted(0, 0, 0, alpha: 0) == [0, 0, 0, 0])
+        let half = lifted(0, 0, 0, alpha: 128)              // premultiplied: lift scales with alpha
+        #expect(half[0] == 10 && half[3] == 128)
+    }
+
+    @Test func darkCoverImageIsLifted() throws {
+        let image = cover(0, 0, 0).withRaisedBlackLevel()
+        // Read back in sRGB, the space the lift works in (device RGB would shift the value).
+        let cg = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        var pixels = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+        let sRGB = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try #require(CGContext(
+            data: &pixels, width: cg.width, height: cg.height, bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+            space: sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        let i = (cg.height / 2 * cg.width + cg.width / 2) * 4
+        #expect(Array(pixels[i ..< i + 4]) == [20, 20, 20, 255], "\(Array(pixels[i ..< i + 4]))")
     }
 }

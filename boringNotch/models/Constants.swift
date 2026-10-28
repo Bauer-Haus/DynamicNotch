@@ -88,7 +88,7 @@ extension Defaults.Keys {
     
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
-    static let waitInterval = Key<Double>("waitInterval", default: 3)
+    static let waitInterval = Key<Double>("waitInterval", default: 10) // matches apple's wait time on iPhone
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let musicControlSlots = Key<[MusicControlButton]>(

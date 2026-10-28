@@ -3,7 +3,7 @@
 //  boringNotchApp
 //
 //  Created by Harsh Vardhan Goswami  on 02/08/24
-//  Modified by Richard Kunkli on 24/08/2024.
+//  Modified by Bauer Jardine on 10/28/2026.
 //
 
 import AVFoundation
@@ -231,9 +231,8 @@ struct ContentView: View {
     @ViewBuilder
     func MusicLiveActivity() -> some View {
         HStack {
-            Image(nsImage: musicManager.albumArt)
+            Image(nsImage: musicManager.displayedAlbumArt)
                 .resizable()
-                .brightness(musicManager.albumArtLift)
                 .clipped()
                 .clipShape(
                     RoundedRectangle(

@@ -24,12 +24,11 @@ extension NSImage {
     /// Made once per track off the main thread; the bars only mask it.
     ///
     /// Dark colours are lifted to `minimumBarBrightness` so bars never vanish into the black
-    /// notch (a black cover gives light grey bars on the iPhone). Also reports the backdrop's
-    /// average luminance, which decides how much a dark cover itself is lifted.
-    func visualizerBackdrop(completion: @escaping (NSImage?, CGFloat) -> Void) {
+    /// notch (a black cover gives light grey bars on the iPhone).
+    func visualizerBackdrop(completion: @escaping (NSImage?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                DispatchQueue.main.async { completion(nil, 0) }
+                DispatchQueue.main.async { completion(nil) }
                 return
             }
             let side: CGFloat = 32
@@ -65,21 +64,20 @@ extension NSImage {
                   let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
                                           bytesPerRow: width * 4, space: space, bitmapInfo: info)
             else {
-                DispatchQueue.main.async { completion(nil, 0) }
+                DispatchQueue.main.async { completion(nil) }
                 return
             }
             context.draw(blurred, in: rect)
-            let luminance = Self.averageLuminance(rgba: pixels)
             Self.liftToMinimumBrightness(rgba: &pixels, minimum: Self.minimumBarBrightness)
 
             guard let lifted = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
                                          bytesPerRow: width * 4, space: space, bitmapInfo: info)?.makeImage()
             else {
-                DispatchQueue.main.async { completion(nil, 0) }
+                DispatchQueue.main.async { completion(nil) }
                 return
             }
             let image = NSImage(cgImage: lifted, size: NSSize(width: side, height: side))
-            DispatchQueue.main.async { completion(image, luminance) }
+            DispatchQueue.main.async { completion(image) }
         }
     }
 
@@ -102,26 +100,6 @@ extension NSImage {
             }
             i += 4
         }
-    }
-
-    /// Mean Rec. 709 luminance of RGBA pixels, 0...1.
-    static func averageLuminance(rgba pixels: [UInt8]) -> CGFloat {
-        let count = pixels.count / 4
-        guard count > 0 else { return 0 }
-        var total: Double = 0
-        var i = 0
-        while i + 3 < pixels.count {
-            total += 0.2126 * Double(pixels[i]) + 0.7152 * Double(pixels[i + 1]) + 0.0722 * Double(pixels[i + 2])
-            i += 4
-        }
-        return CGFloat(total / Double(count) / 255)
-    }
-
-    /// How much to brighten a cover so a dark one doesn't disappear into the black notch:
-    /// pure black is drawn as dark grey (~0.1, like the iPhone's ~28/255), fading to no
-    /// change for covers of normal brightness.
-    static func darkArtLift(averageLuminance: CGFloat) -> CGFloat {
-        max(0, 0.1 - 0.5 * averageLuminance)
     }
 
     /// Decodes image data straight to a copy no larger than `maxPixelSize` on its longest
@@ -289,5 +267,48 @@ extension Color {
         blue = min(blue * scale, 1.0)
         
         return Color(red: Double(red), green: Double(green), blue: Double(blue), opacity: Double(alpha))
+    }
+}
+
+/// Album covers on the iPhone's Dynamic Island never show true black: their blacks are
+/// raised to dark grey so a dark cover doesn't melt into the black island, while colours and
+/// highlights stay as they are. Measured from screenshots of three dark covers: pure black
+/// shows as ~20/255 and a near-black of ~8 as ~27, i.e. out = 20 + in x 235/255 on ordinary
+/// (gamma-encoded) values. It applies to every cover; on a bright one only near-black changes.
+/// (SwiftUI's screen blend works in linear light and gave 26 for black and 156 for mid-grey.)
+enum AlbumArtLook {
+    static let blackLevel: UInt8 = 20
+
+    /// Raises the black level of premultiplied RGBA pixels, keeping alpha.
+    static func raiseBlackLevel(rgba pixels: inout [UInt8], to level: UInt8 = blackLevel) {
+        let scale = 255 - Int(level)
+        var i = 0
+        while i + 3 < pixels.count {
+            let alpha = Int(pixels[i + 3])
+            let lift = Int(level) * alpha / 255   // premultiplied: the lift scales with alpha
+            for c in 0 ..< 3 {
+                pixels[i + c] = UInt8(min(alpha, lift + (Int(pixels[i + c]) * scale + 127) / 255))
+            }
+            i += 4
+        }
+    }
+}
+
+extension NSImage {
+    /// A copy with the album-art black level applied (see `AlbumArtLook`).
+    func withRaisedBlackLevel() -> NSImage {
+        guard let cg = cgImage(forProposedRect: nil, context: nil, hints: nil) else { return self }
+        let width = cg.width, height = cg.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: space, bitmapInfo: info) else { return self }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        AlbumArtLook.raiseBlackLevel(rgba: &pixels)
+        guard let lifted = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
+                                     bytesPerRow: width * 4, space: space, bitmapInfo: info)?.makeImage()
+        else { return self }
+        return NSImage(cgImage: lifted, size: size)
     }
 }
