@@ -17,7 +17,9 @@ extension Color {
         if let nsColor = NSColor.customAccent {
             return Color(nsColor: nsColor)
         }
-        return .accentColor
+        // Explicitly the Mac's accent colour, like NSColor.effectiveAccent (the app's own
+        // AccentColor asset is empty, which falls back to the same colour anyway).
+        return .systemAccent
     }
     
     /// Returns a darker version of the accent color suitable for backgrounds
