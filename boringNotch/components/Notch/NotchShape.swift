@@ -11,29 +11,52 @@ import SwiftUI
 struct NotchShape: Shape {
     private var topCornerRadius: CGFloat
     private var bottomCornerRadius: CGFloat
+    /// A bottom edge that moves on its own curve while the shape shrinks; nil follows the frame.
+    private var bottomTravel: BottomTravel?
+    /// Counts up by one per trip, animated.
+    private var bottomProgress: CGFloat
+
+    /// The bottom edge going from `from` to `to` pt below the top as `bottomProgress` goes from
+    /// `start` to `start + 1`, then staying at `to` until the travel is cleared.
+    struct BottomTravel: Equatable {
+        var from: CGFloat
+        var to: CGFloat
+        var start: CGFloat
+    }
 
     init(
         topCornerRadius: CGFloat? = nil,
-        bottomCornerRadius: CGFloat? = nil
+        bottomCornerRadius: CGFloat? = nil,
+        bottomTravel: BottomTravel? = nil,
+        bottomProgress: CGFloat = 0
     ) {
         self.topCornerRadius = topCornerRadius ?? 6
         self.bottomCornerRadius = bottomCornerRadius ?? 14
+        self.bottomTravel = bottomTravel
+        self.bottomProgress = bottomProgress
     }
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
         get {
-            .init(
-                topCornerRadius,
-                bottomCornerRadius
-            )
+            .init(.init(topCornerRadius, bottomCornerRadius), bottomProgress)
         }
         set {
-            topCornerRadius = newValue.first
-            bottomCornerRadius = newValue.second
+            topCornerRadius = newValue.first.first
+            bottomCornerRadius = newValue.first.second
+            bottomProgress = newValue.second
         }
+    }
+
+    /// Where the bottom edge is drawn, or nil to follow the frame.
+    static func bottomLimit(_ travel: BottomTravel?, progress: CGFloat) -> CGFloat? {
+        guard let travel else { return nil }
+        let fraction = min(max(progress - travel.start, 0), 1)
+        return travel.from + (travel.to - travel.from) * fraction
     }
 
     func path(in rect: CGRect) -> Path {
+        let limit = Self.bottomLimit(bottomTravel, progress: bottomProgress) ?? rect.height
+        let rect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: min(rect.height, limit))
         var path = Path()
 
         path.move(

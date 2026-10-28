@@ -124,3 +124,24 @@ struct IslandShadowTests {
         #expect(windowSize.height == openNotchSize.height + islandShadowMargin)
     }
 }
+
+@Suite("Closing notch bottom edge")
+struct ClosingBottomTests {
+    private let travel = NotchShape.BottomTravel(from: 218, to: 32, start: 3)
+
+    @Test func followsTheFrameWithoutATrip() {
+        #expect(NotchShape.bottomLimit(nil, progress: 3.5) == nil)
+    }
+
+    @Test func movesFromOpenToClosedOverOneTrip() {
+        #expect(NotchShape.bottomLimit(travel, progress: 3) == 218)
+        #expect(NotchShape.bottomLimit(travel, progress: 3.5) == 125)
+        #expect(NotchShape.bottomLimit(travel, progress: 4) == 32)
+    }
+
+    /// Held at the closed height until cleared, so it never drops back to a frame still landing.
+    @Test func staysAtTheClosedHeightAfterTheTrip() {
+        #expect(NotchShape.bottomLimit(travel, progress: 4) == 32)
+        #expect(NotchShape.bottomLimit(travel, progress: 2) == 218)
+    }
+}

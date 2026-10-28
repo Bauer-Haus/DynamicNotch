@@ -31,6 +31,20 @@ struct ContentView: View {
     @Default(.mediaSwipeGestures) var mediaSwipeGestures
     /// One track change per swipe, however far it goes.
     @State private var mediaSwipeHandled = false
+    /// The open island's height, measured, so a close can start its bottom from there.
+    @State private var openIslandHeight: CGFloat = openNotchSize.height
+    /// The bottom edge's trip on the current close, and its progress (one per close, animated on
+    /// `closeBottomAnimation`). The sides still follow the layout.
+    @State private var closeBottomTravel: NotchShape.BottomTravel?
+    @State private var closeBottomProgress: CGFloat = 0
+
+    /// Closing is one eased curve for the whole notch...
+    private static let closeDuration = 0.4
+    private let closeAnimation = Animation.timingCurve(0.25, 0.1, 0.25, 1.0, duration: closeDuration)
+    /// ...except the bottom, which travels 2-4x as far as each side (~186 pt against 46-63 pt).
+    /// On the same curve its last points of movement were still visible after the sides looked
+    /// done. On this slightly shorter one, both are within ~2 pt of the end at the same moment.
+    private let closeBottomAnimation = Animation.timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.35)
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
@@ -49,7 +63,9 @@ struct ContentView: View {
             topCornerRadius: topCornerRadius,
             bottomCornerRadius: ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
                 ? cornerRadiusInsets.opened.bottom
-                : cornerRadiusInsets.closed.bottom
+                : cornerRadiusInsets.closed.bottom,
+            bottomTravel: vm.notchState == .closed ? closeBottomTravel : nil,
+            bottomProgress: closeBottomProgress
         )
     }
 
@@ -95,6 +111,9 @@ struct ContentView: View {
                     .padding(.bottom, vm.notchState == .open ? 24 * openPlayerScale : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        if vm.notchState == .open { openIslandHeight = height }
+                    }
                     .overlay(alignment: .top) {
                         Rectangle()
                             .fill(.black)
@@ -132,8 +151,6 @@ struct ContentView: View {
                         // visible adjustment); a slightly bouncy one shrank 1 px too far and came back
                         // (a twitch). This never overshoots, every part lands within one frame of the
                         // others, and it settles in ~0.37 s.
-                        let closeAnimation = Animation.timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.4)
-                        
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
@@ -167,6 +184,7 @@ struct ContentView: View {
                             }
                     }
                     .onChange(of: vm.notchState) { _, newState in
+                        bringBottomInFaster(newState)
                         if newState == .closed && isHovering {
                             withAnimation {
                                 isHovering = false
@@ -280,6 +298,23 @@ struct ContentView: View {
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
+    }
+
+    /// On a close, run the bottom edge on `closeBottomAnimation`, from the open island's bottom
+    /// to the closed height, and hold it there until the rest of the notch lands too (handing
+    /// back earlier dropped the bottom ~1 pt and pulled it up again). Nothing animatable jumps:
+    /// the trip is the progress counting up by one.
+    private func bringBottomInFaster(_ state: NotchState) {
+        guard state == .closed, vm.effectiveClosedNotchHeight > 0 else {
+            closeBottomTravel = nil
+            return
+        }
+        let start = closeBottomProgress.rounded(.up)
+        closeBottomTravel = .init(from: openIslandHeight, to: vm.effectiveClosedNotchHeight, start: start)
+        withAnimation(closeBottomAnimation) { closeBottomProgress = start + 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.closeDuration + 0.1) {
+            if closeBottomTravel?.start == start { closeBottomTravel = nil }
+        }
     }
 
     private func doOpen() {
