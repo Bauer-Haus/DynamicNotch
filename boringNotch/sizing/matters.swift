@@ -23,12 +23,13 @@ let notchTopCornerRadius: CGFloat = 8
 
 /// 540 x 266 pt at full scale, plus the top corners on each side.
 let openNotchSize: CGSize = .init(width: 540 * openPlayerScale + 2 * notchTopCornerRadius, height: 266 * openPlayerScale)
-/// Room around the open island for its halo: the iPhone blurs what's behind it out to ~143 pt
-/// and shades it out to ~43 pt (measured on screenshots), scaled like the rest of the player.
-let islandHaloMargin: CGFloat = (143 * openPlayerScale).rounded()
-/// The window is the open island plus its halo. What's outside the island is see-through and
-/// passes clicks through while the notch is closed.
-let windowSize: CGSize = .init(width: openNotchSize.width + 2 * islandHaloMargin, height: openNotchSize.height + islandHaloMargin)
+/// Room around the open island for its shadow, which fades out by ~40 pt below it (fitted to the
+/// iPhone's, scaled like the rest of the player). The content sits a few pt below the open
+/// size, so this leaves room for it to fade out completely (measured on screen).
+let islandShadowMargin: CGFloat = 60
+/// The window is the open island plus room for its shadow. What's outside the island is
+/// see-through and passes clicks through.
+let windowSize: CGSize = .init(width: openNotchSize.width + 2 * islandShadowMargin, height: openNotchSize.height + islandShadowMargin)
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: 52 * openPlayerScale), closed: (top: notchTopCornerRadius, bottom: 14))
 
 enum MusicPlayerImageSizes {

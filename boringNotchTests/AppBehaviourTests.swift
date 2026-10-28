@@ -117,32 +117,10 @@ struct StoredSettingsTests {
     }
 }
 
-@Suite("Open island halo")
-@MainActor
-struct IslandHaloTests {
-    @Test func blurFadesOutwardsAndEndsAtTheWindowEdge() {
-        let samples = stride(from: 0, through: islandHaloMargin, by: 2).map { IslandBackdrop.strength(atDistance: $0) }
-        #expect(samples.first == 0.7)
-        #expect(zip(samples, samples.dropFirst()).allSatisfy { $0 >= $1 })
-        #expect(IslandBackdrop.strength(atDistance: islandHaloMargin + 1) == 0)
-    }
-
-    @Test func distanceIsMeasuredFromTheVisibleIsland() {
-        let island = CGSize(width: 448, height: 218)
-        let centreX = windowSize.width / 2
-        let bodyHalfWidth = island.width / 2 - cornerRadiusInsets.opened.top
-        func distance(_ x: CGFloat, _ y: CGFloat) -> CGFloat {
-            IslandBackdrop.distanceToIsland(CGPoint(x: x, y: y), islandSize: island)
-        }
-        #expect(distance(centreX, 50) == 0)
-        #expect(abs(distance(centreX, island.height + 30) - 30) < 0.001)
-        // The sides are the shape's body, inside the top corners' room, not the frame's edge.
-        #expect(abs(distance(centreX + bodyHalfWidth + 20, 30) - 20) < 0.001)
-        #expect(distance(centreX + bodyHalfWidth - 1, 30) == 0)
-    }
-
-    @Test func windowLeavesRoomForTheHalo() {
-        #expect(windowSize.width == openNotchSize.width + 2 * islandHaloMargin)
-        #expect(windowSize.height == openNotchSize.height + islandHaloMargin)
+@Suite("Open island shadow")
+struct IslandShadowTests {
+    @Test func windowLeavesRoomForTheShadow() {
+        #expect(windowSize.width == openNotchSize.width + 2 * islandShadowMargin)
+        #expect(windowSize.height == openNotchSize.height + islandShadowMargin)
     }
 }
