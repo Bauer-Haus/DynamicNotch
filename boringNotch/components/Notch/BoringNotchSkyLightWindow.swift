@@ -118,7 +118,8 @@ class BoringNotchSkyLightWindow: NSPanel {
 /// corners. Measured from a photo of a 14" MacBook Pro's top corner against an on-screen
 /// grid: an Apple continuous corner of 18 pt at 1512 x 982 (36 pixels, 3.6 mm), within
 /// ~0.1 pt along the whole curve. Clicks pass through, and like the real corners they don't
-/// show in screenshots or recordings.
+/// show in screenshots or recordings. They sit above every window, and the pointer hides
+/// while its tip is on them, so it seems to go under them like it would under real corners.
 @MainActor
 final class ScreenCornerMasks {
     static let shared = ScreenCornerMasks()
@@ -129,6 +130,10 @@ final class ScreenCornerMasks {
     static let maskSizeFactor: CGFloat = 1.6
 
     private var windows: [NSWindow] = []
+    /// Each corner's black area, in screen coordinates.
+    private var blackAreas: [CGPath] = []
+    private var pointerHidden = false
+    private var pointerMonitors: [Any] = []
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -136,6 +141,41 @@ final class ScreenCornerMasks {
         ) { _ in
             Task { @MainActor in ScreenCornerMasks.shared.refresh() }
         }
+        Self.allowHidingPointerInBackground()
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        // Other apps' pointer moves, and our own.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { _ in
+            Task { @MainActor in ScreenCornerMasks.shared.pointerMoved() }
+        }) { pointerMonitors.append(global) }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { event in
+            Task { @MainActor in ScreenCornerMasks.shared.pointerMoved() }
+            return event
+        }) { pointerMonitors.append(local) }
+    }
+
+    /// Hides the pointer while its tip is in a black corner, shows it again once it leaves.
+    private func pointerMoved() {
+        let inCorner = Self.isInBlackArea(NSEvent.mouseLocation, areas: blackAreas)
+        guard inCorner != pointerHidden else { return }
+        pointerHidden = inCorner
+        if inCorner { CGDisplayHideCursor(CGMainDisplayID()) } else { CGDisplayShowCursor(CGMainDisplayID()) }
+    }
+
+    static func isInBlackArea(_ point: CGPoint, areas: [CGPath]) -> Bool {
+        areas.contains { $0.contains(point, using: .evenOdd) }
+    }
+
+    /// macOS only lets the frontmost app hide the pointer, unless its connection to the window
+    /// server says otherwise (a private setting, like the lock-screen window's).
+    private static func allowHidingPointerInBackground() {
+        typealias DefaultConnection = @convention(c) () -> Int32
+        typealias SetProperty = @convention(c) (Int32, Int32, CFString, CFTypeRef) -> Int32
+        let handle = dlopen(nil, RTLD_NOW)
+        guard let connectionSymbol = dlsym(handle, "_CGSDefaultConnection"),
+              let setSymbol = dlsym(handle, "CGSSetConnectionProperty") else { return }
+        let connection = unsafeBitCast(connectionSymbol, to: DefaultConnection.self)()
+        _ = unsafeBitCast(setSymbol, to: SetProperty.self)(
+            connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
     }
 
     /// Puts the corners on every screen with a camera notch (the 2021-and-later MacBook Pro
@@ -143,6 +183,7 @@ final class ScreenCornerMasks {
     func refresh() {
         windows.forEach { $0.close() }
         windows = []
+        blackAreas = []
         for screen in NSScreen.screens where screen.safeAreaInsets.top > 0 {
             let radius = Self.cornerRadius(on: screen)
             guard radius > 0 else { continue }
@@ -190,7 +231,8 @@ final class ScreenCornerMasks {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
-        window.level = .screenSaver
+        // The highest level there is: above menus, alerts, full-screen apps and screen savers.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         window.sharingType = .none
 
@@ -201,6 +243,7 @@ final class ScreenCornerMasks {
         shape.fillColor = NSColor.black.cgColor
         shape.fillRule = .evenOdd
         shape.path = Self.maskPath(in: view.bounds, corner: corner, radius: radius)
+        blackAreas.append(Self.maskPath(in: frame, corner: corner, radius: radius))
         view.layer?.addSublayer(shape)
         window.contentView = view
         window.orderFrontRegardless()
