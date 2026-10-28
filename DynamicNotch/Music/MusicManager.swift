@@ -510,7 +510,7 @@ class MusicManager: ObservableObject {
         ]
         guard let url = components.url else { return ("", []) }
         var request = URLRequest(url: url, timeoutInterval: 10)
-        request.setValue("DynamicNotch (https://github.com/Bauer-Haus/boring.notch)", forHTTPHeaderField: "User-Agent")
+        request.setValue("DynamicNotch (https://github.com/Bauer-Haus/DynamicNotch)", forHTTPHeaderField: "User-Agent")
 
         // LRCLIB is sometimes briefly overloaded (503) or rate-limits (429): try once more.
         for attempt in 0 ..< 2 {

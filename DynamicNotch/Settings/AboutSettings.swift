@@ -45,7 +45,7 @@ struct AboutSettings: View {
                 HStack(spacing: 30) {
                     Spacer(minLength: 0)
                     Button {
-                        if let url = URL(string: "https://github.com/Bauer-Haus/boring.notch") {
+                        if let url = URL(string: "https://github.com/Bauer-Haus/DynamicNotch") {
                             NSWorkspace.shared.open(url)
                         }
                     } label: {
