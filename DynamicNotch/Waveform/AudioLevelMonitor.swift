@@ -38,6 +38,12 @@ final class AudioLevelMonitor {
     private var targetBundleID: String?
     private var tappedBundleID: String?
     private var isRunning = false
+    /// Rebuilds of a tap that only ever delivered silence, for the back-off below.
+    private var silentRebuilds = 0
+    /// How long a tap may deliver nothing but silence while music plays before it is rebuilt,
+    /// growing with each try so a quiet intro or a blocked permission doesn't rebuild it
+    /// constantly.
+    static let silentRebuildWaits: [TimeInterval] = [3, 10, 30]
     private var outputDeviceListener: AudioObjectPropertyListenerBlock?
 
     private let lock = NSLock()
@@ -139,6 +145,7 @@ final class AudioLevelMonitor {
             let now = CFAbsoluteTimeGetCurrent()
             self.lock.lock()
             let lastCallback = self._lastCallback
+            let heardSignal = self._heardSignal
             self.lock.unlock()
             // A tap that delivered audio and then stopped is reconnected quickly. One that
             // hasn't delivered yet is usually waiting on the system-audio permission dialog:
@@ -149,7 +156,13 @@ final class AudioLevelMonitor {
                 && (delivered ? now - lastCallback > 2 : now - self.startedAt > 30)
             let betterTarget = self.isRunning && self.tappedBundleID == nil && self.targetBundleID != nil
                 && !Self.processObjects(forBundleID: self.targetBundleID!).isEmpty
-            if stalled || betterTarget { self.teardown() }
+            // Delivering, but only silence while the music plays (this is only called while
+            // it plays and the bars aren't live). Seen after a Bluetooth speaker connected: the
+            // tap rebuilt for it mid-switch passed on nothing but silence until a restart.
+            let wait = Self.silentRebuildWaits[min(self.silentRebuilds, Self.silentRebuildWaits.count - 1)]
+            let silent = self.isRunning && delivered && !heardSignal && now - self.startedAt > wait
+            if silent { self.silentRebuilds += 1 }
+            if stalled || betterTarget || silent { self.teardown() }
             self.startLocked()
         }
     }
@@ -297,6 +310,7 @@ final class AudioLevelMonitor {
         let channelsPerBuffer = buffers.count > 1 ? 1 : max(1, Int(first.mNumberChannels))
         let framesThisCallback = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channelsPerBuffer
 
+        if peak > 1e-6 { silentRebuilds = 0 }
         lock.lock()
         _lastCallback = CFAbsoluteTimeGetCurrent()
         if peak > 1e-6 { _heardSignal = true }
