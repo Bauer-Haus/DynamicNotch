@@ -9,23 +9,25 @@ import Accelerate
 import Foundation
 
 /// The iPhone-matched analysis, kept apart from Core Audio so it can be tested with
-/// synthetic audio. Fitted to 120 fps captures of the Dynamic Island playing test tones,
-/// tone volume steps and pink noise: a 2048-sample Hann FFT, each bar summing the FFT
+/// synthetic audio. Fitted frame by frame to iPhone screen recordings of the Dynamic Island
+/// playing a sweep, tone steps, bursts, a pink-noise ramp, tone pairs and a drum beat
+/// (October 2026; the files are in iphone-band-test): a 2048-sample Hann FFT, each bar summing the FFT
 /// magnitudes in its band (lightly normalised by band width), mapped through a power
 /// curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to fill
 /// a bar. Not thread-safe; buffers are allocated once so `push` never allocates.
 final class SpectrumAnalyzer {
     static let bandCount = 6
     /// Band edges in Hz (bandCount + 1 values).
-    static let bandEdges: [Float] = [33.5, 93.75, 189.4, 553.3, 1828, 4945, 9997]
+    /// Each sits half an FFT bin below a bin at 48 kHz, so bands start exactly where fitted.
+    static let bandEdges: [Float] = [11.72, 105.47, 175.78, 574.22, 1535.16, 4535.16, 9105.47]
     /// Per-bar gain in dB applied to the band sum.
-    static let bandGainDB: [Float] = [3.67, -5.51, 1.31, -0.33, 1.07, -0.21]
+    static let bandGainDB: [Float] = [-5.075, -1.741, -1.174, -0.221, -1.204, -2.4]
     /// level = clamp(curveScale * (gain * sum / bins^widthExponent)^curveExponent - curveFloor, 0, 1)
-    static let curveScale: Float = 0.0330293
-    static let curveExponent: Float = 0.56783
-    static let curveFloor: Float = 0.08208
+    static let curveScale: Float = 0.0331059
+    static let curveExponent: Float = 0.62474
+    static let curveFloor: Float = 0.07929
     /// The band sum is divided by (bin count)^widthExponent.
-    static let widthExponent: Float = 0.12749
+    static let widthExponent: Float = 0.16388
 
     static let fftSize = 2048
     /// A new analysis every 512 samples (~11 ms at 48 kHz).

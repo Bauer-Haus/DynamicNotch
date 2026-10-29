@@ -12,7 +12,7 @@ import Testing
 @Suite("Spectrum analysis")
 struct SpectrumAnalyzerTests {
     static let sampleRate = 48_000.0
-    /// A frequency inside each band (edges 33.5, 93.75, 189.4, 553.3, 1828, 4945, 9997 Hz).
+    /// A frequency inside each band (edges 11.7, 105, 176, 574, 1535, 4535, 9105 Hz).
     static let bandCentres: [Double] = [60, 130, 330, 1000, 3000, 7000]
 
     /// Feeds `seconds` of a sine wave and returns the last levels.
@@ -53,6 +53,14 @@ struct SpectrumAnalyzerTests {
         let loudest = try #require(result.indices.max { result[$0] < result[$1] })
         #expect(loudest == band, "\(Int(frequency)) Hz should light bar \(band), got \(result)")
         #expect(result[band] > 0.1)
+    }
+
+    /// Where the iPhone put tones in its screen recordings (bars counted from 0).
+    @Test(arguments: [(25.0, 0), (1600.0, 4), (5000.0, 5)])
+    func tonesLightTheBarTheIPhoneDoes(frequency: Double, bar: Int) throws {
+        let result = try levels(tone: frequency, amplitude: 0.7)
+        let loudest = result.indices.max { result[$0] < result[$1] }
+        #expect(loudest == bar, "\(Int(frequency)) Hz should light bar \(bar), got \(result)")
     }
 
     @Test func nothingAboveTenKilohertzMovesTheBars() throws {

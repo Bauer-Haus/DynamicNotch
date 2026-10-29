@@ -42,11 +42,12 @@ class AudioSpectrum: NSView {
     /// song of the day. Rest as dots meanwhile; only fall back to the random animation if no
     /// audio has arrived by then (permission denied).
     static let randomFallbackDelay: TimeInterval = 3
-    /// Smoothing time constants for live levels. Compared frame by frame with the iPhone
-    /// Dynamic Island on a synthetic music track: even 40 ms scores 0.089 / corr 0.91 on
-    /// held-back audio, near the best fit (80/50 ms, 0.085) with less delay (50 vs 83 ms).
-    static let riseTime: Double = 0.040
-    static let fallTime: Double = 0.040
+    /// Smoothing time constants for live levels, fitted with the analysis to iPhone screen
+    /// recordings (bursts of 10 to 640 ms and on/off trains of 2 to 16 Hz): the bars rise a
+    /// little slower than they fall. The iPhone also shows its bars ~78 ms after the sound,
+    /// measured through Bluetooth headphones; that delay is deliberately not copied.
+    static let riseTime: Double = 0.054
+    static let fallTime: Double = 0.032
 
     var bundleID: String? {
         didSet {
