@@ -114,7 +114,7 @@ struct NotchSettings: View {
                 }
                 Toggle(isOn: $roundBottomScreenCorners) {
                     SettingsLabel(
-                        "Round bottom screen corners",
+                        "Round bottom screen corners (PROLED XDR)",
                         subtitle: "Black corners at the bottom of the screen to match the top.",
                         symbol: "rectangle.roundedbottom", color: .gray)
                 }
