@@ -15,11 +15,8 @@ import SwiftUI
 
 /// Taps the output audio of the now-playing app and publishes band levels (0...1).
 ///
-/// The analysis reproduces the iPhone Dynamic Island waveform, fitted to 120 fps captures
-/// of test tones, tone volume steps and pink noise: a 2048-sample Hann FFT, each bar summing the FFT magnitudes in its band (lightly normalised
-/// by band width), mapped through a power curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to
-/// fill a bar. A 2048-sample window fits the iPhone captures better than 4096 and halves
-/// the lag; it is analysed every 512 samples (~11 ms, so every 60 Hz frame has a fresh
+/// The analysis (SpectrumAnalyzer) reproduces the iPhone Dynamic Island waveform, fitted
+/// to iPhone screen recordings. A 2048-sample window fits them better than 1024 or 4096; it is analysed every 512 samples (~11 ms, so every 60 Hz frame has a fresh
 /// result) and shown directly.
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()

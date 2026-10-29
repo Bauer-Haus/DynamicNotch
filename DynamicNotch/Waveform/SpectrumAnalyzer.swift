@@ -10,9 +10,10 @@ import Foundation
 
 /// The iPhone-matched analysis, kept apart from Core Audio so it can be tested with
 /// synthetic audio. Fitted frame by frame to iPhone screen recordings of the Dynamic Island
-/// playing a sweep, tone steps, bursts, a pink-noise ramp, tone pairs and a drum beat
-/// (October 2026; the files are in iphone-band-test): a 2048-sample Hann FFT, each bar summing the FFT
-/// magnitudes in its band (lightly normalised by band width), mapped through a power
+/// playing 11 test tracks: sweeps, tone and volume steps, bursts, noise, tone pairs, a drum
+/// beat and a short song (October 2026; the files and their generators are in
+/// iphone-band-test): a 2048-sample Hann FFT, each bar averaging the FFT magnitudes in
+/// its band, mapped through a power
 /// curve. Nothing above ~10 kHz moves it, and a tone needs to be near full scale to fill
 /// a bar. Not thread-safe; buffers are allocated once so `push` never allocates.
 final class SpectrumAnalyzer {
@@ -21,13 +22,13 @@ final class SpectrumAnalyzer {
     /// Each sits half an FFT bin below a bin at 48 kHz, so bands start exactly where fitted.
     static let bandEdges: [Float] = [11.72, 105.47, 175.78, 574.22, 1535.16, 4535.16, 9105.47]
     /// Per-bar gain in dB applied to the band sum.
-    static let bandGainDB: [Float] = [-5.075, -1.741, -1.174, -0.221, -1.204, -2.4]
+    static let bandGainDB: [Float] = [-15.163, -15.402, -4.041, 3.246, 9.939, 11.861]
     /// level = clamp(curveScale * (gain * sum / bins^widthExponent)^curveExponent - curveFloor, 0, 1)
-    static let curveScale: Float = 0.0331059
-    static let curveExponent: Float = 0.62474
-    static let curveFloor: Float = 0.07929
-    /// The band sum is divided by (bin count)^widthExponent.
-    static let widthExponent: Float = 0.16388
+    static let curveScale: Float = 0.2795527
+    static let curveExponent: Float = 0.48390
+    static let curveFloor: Float = 0.16352
+    /// The band sum is divided by (bin count)^widthExponent: 1 makes it the band's average.
+    static let widthExponent: Float = 1.0
 
     static let fftSize = 2048
     /// A new analysis every 512 samples (~11 ms at 48 kHz).

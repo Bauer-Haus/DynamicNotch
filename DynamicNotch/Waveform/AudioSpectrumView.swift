@@ -45,9 +45,9 @@ class AudioSpectrum: NSView {
     /// Smoothing time constants for live levels, fitted with the analysis to iPhone screen
     /// recordings (bursts of 10 to 640 ms and on/off trains of 2 to 16 Hz): the bars rise a
     /// little slower than they fall. The iPhone also shows its bars ~78 ms after the sound,
-    /// measured through Bluetooth headphones; that delay is deliberately not copied.
-    static let riseTime: Double = 0.054
-    static let fallTime: Double = 0.032
+    /// ~60 ms through its own speaker; that delay is deliberately not copied.
+    static let riseTime: Double = 0.064
+    static let fallTime: Double = 0.030
 
     var bundleID: String? {
         didSet {
