@@ -233,9 +233,13 @@ struct NotchView: View {
                 if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                     MusicLiveActivity()
                         .frame(alignment: .center)
-                        // Arrive solid: fading in on top of the fading-out open cover left
-                        // two half-faded copies, so the art went grey mid-close.
-                        .transition(.asymmetric(insertion: .identity, removal: .opacity))
+                        // Stay solid on top while the open player fades in or out underneath:
+                        // two half-faded copies of the cover made the art go grey. On an open it
+                        // leaves once the player has fully faded and scaled in.
+                        .transition(.asymmetric(
+                            insertion: .identity,
+                            removal: .opacity.animation(.easeOut(duration: 0.1).delay(0.35))
+                        ))
                 } else if vm.notchState == .open {
                     // The open player starts below the menu bar (or the camera housing).
                     Color.clear
@@ -266,8 +270,9 @@ struct NotchView: View {
                 .resizable()
                 .clipped()
                 .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
+                    AlbumArtShape(openRadius: Defaults[.cornerRadiusScaling]
+                        ? MusicPlayerImageSizes.cornerRadiusInset.opened
+                        : MusicPlayerImageSizes.cornerRadiusInset.closed)
                 )
                 .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                 .frame(

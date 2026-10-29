@@ -72,6 +72,22 @@ enum MusicPlayerImageSizes {
     static let size = (opened: CGSize(width: OpenPlayer.artSize, height: OpenPlayer.artSize), closed: CGSize(width: 20, height: 20))
 }
 
+/// The album cover's rounded square. Its corner radius follows its width, from the closed
+/// cover's to the open player's, so both copies of the cover have the same corners at every
+/// size while the notch opens or closes.
+struct AlbumArtShape: Shape {
+    var openRadius: CGFloat = MusicPlayerImageSizes.cornerRadiusInset.opened
+
+    func path(in rect: CGRect) -> Path {
+        let closed = MusicPlayerImageSizes.size.closed.width
+        let opened = MusicPlayerImageSizes.size.opened.width
+        let t = min(max((rect.width - closed) / max(opened - closed, 1), 0), 1)
+        let closedRadius = MusicPlayerImageSizes.cornerRadiusInset.closed
+        let radius = closedRadius + (openRadius - closedRadius) * t
+        return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
+    }
+}
+
 /// The screen the notch is on: the one with this UUID, or the main screen if none is given.
 /// (A UUID that matches no connected screen gives nil, not the main screen.)
 @MainActor func notchScreen(_ screenUUID: String?) -> NSScreen? {
