@@ -402,7 +402,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 305;
+				CURRENT_PROJECT_VERSION = 306;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DynamicNotch/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = MCKW93H2K7;
@@ -427,7 +427,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.14.4;
+				MARKETING_VERSION = 2.14.5;
 				PRODUCT_BUNDLE_IDENTIFIER = io.bauerhaus.boringnotch;
 				PRODUCT_NAME = DynamicNotch;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -453,7 +453,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 305;
+				CURRENT_PROJECT_VERSION = 306;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DynamicNotch/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = MCKW93H2K7;
@@ -477,7 +477,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.14.4;
+				MARKETING_VERSION = 2.14.5;
 				PRODUCT_BUNDLE_IDENTIFIER = io.bauerhaus.boringnotch;
 				PRODUCT_NAME = DynamicNotch;
 				PROVISIONING_PROFILE_SPECIFIER = "";
