@@ -69,6 +69,14 @@ struct NotchView: View {
         )
     }
 
+    /// The closed notch shows the cover and waveform: music is playing (or just paused), and
+    /// a close from open has finished shrinking to the bare notch.
+    private var showsClosedPlayer: Bool {
+        vm.notchState == .closed && !vm.closedPlayerHeld
+            && (musicManager.isPlaying || !musicManager.isPlayerIdle)
+            && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
+    }
+
     /// Width of the visualizer slot on the right of the closed notch: the album-art square.
     /// The bars are as tall as the art and, at Apple's proportions, ~0.94 of that wide.
     private var visualizerWidth: CGFloat {
@@ -78,9 +86,7 @@ struct NotchView: View {
     private var computedChinWidth: CGFloat {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
-        if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
-            && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
-        {
+        if showsClosedPlayer {
             chinWidth += (max(0, vm.effectiveClosedNotchHeight - 12) + visualizerWidth + 20)
         }
 
@@ -222,14 +228,15 @@ struct NotchView: View {
         // No default 8 pt gap between the space under the camera and the player.
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading) {
-                if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
+                if showsClosedPlayer {
                     MusicLiveActivity()
                         .frame(alignment: .center)
-                        // Stay solid on top while the open player fades in or out underneath:
+                        // Grows out of the bare notch (after a close has shrunk it, or when music
+                        // starts). Stays solid on top while the open player fades in underneath:
                         // two half-faded copies of the cover made the art go grey. On an open it
                         // leaves once the player has fully faded and scaled in.
                         .transition(.asymmetric(
-                            insertion: .identity,
+                            insertion: .scale(scale: 0.6).combined(with: .opacity),
                             removal: .opacity.animation(.easeOut(duration: 0.1).delay(0.35))
                         ))
                 } else if vm.notchState == .open {

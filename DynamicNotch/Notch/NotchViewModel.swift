@@ -24,6 +24,16 @@ class NotchViewModel: NSObject, ObservableObject {
     
     @Published var hideOnClosed: Bool = true
 
+    /// Like the iPhone's Dynamic Island: a close shrinks the open notch all the way to the bare
+    /// notch first, and only then does the closed player (cover and waveform) grow out of it.
+    /// True while that shrink runs.
+    @Published private(set) var closedPlayerHeld = false
+    private var closeID = 0
+    /// The close takes 0.4 s but is within a few points of the bare notch by ~0.28 s, so the
+    /// player starts then: any later and the bare notch sits there for a beat.
+    private static let closedPlayerDelay: TimeInterval = 0.28
+    static let closedPlayerSpring = Animation.spring(response: 0.35, dampingFraction: 0.8)
+
     @Published var edgeAutoOpenActive: Bool = false
 
     @Published var screenUUID: String?
@@ -124,6 +134,8 @@ class NotchViewModel: NSObject, ObservableObject {
     }
 
     func open() {
+        closeID += 1
+        closedPlayerHeld = false
         self.notchSize = openNotchSize
         self.notchState = .open
         
@@ -132,6 +144,15 @@ class NotchViewModel: NSObject, ObservableObject {
     }
 
     func close() {
+        if notchState == .open {
+            closeID += 1
+            let id = closeID
+            closedPlayerHeld = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.closedPlayerDelay) { [weak self] in
+                guard let self, self.closeID == id else { return }
+                withAnimation(Self.closedPlayerSpring) { self.closedPlayerHeld = false }
+            }
+        }
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed

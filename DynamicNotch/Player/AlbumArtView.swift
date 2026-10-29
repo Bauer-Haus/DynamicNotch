@@ -75,7 +75,7 @@ private struct HiddenWhileClosedNotchCovers: ViewModifier {
 
     /// Same test as `NotchView`'s closed layout.
     private var closedNotchShowsPlayer: Bool {
-        (musicManager.isPlaying || !musicManager.isPlayerIdle)
+        !vm.closedPlayerHeld && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
     }
 }
