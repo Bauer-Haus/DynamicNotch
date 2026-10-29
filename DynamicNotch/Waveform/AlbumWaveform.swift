@@ -25,10 +25,13 @@ struct AlbumWaveform: View {
                 Rectangle().fill(Color.gray.gradient)
             }
         }
-        .frame(width: width, height: height)
+        // Fills the size it's given (`width` x `height` unless a transition morphs it), so it
+        // grows and shrinks with the notch instead of swapping sizes at the end.
+        .frame(minWidth: 0, idealWidth: width, maxWidth: .infinity,
+               minHeight: 0, idealHeight: height, maxHeight: .infinity)
         .mask {
             AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
-                .frame(width: width, height: height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

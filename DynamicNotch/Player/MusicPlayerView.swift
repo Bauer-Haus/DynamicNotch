@@ -29,6 +29,8 @@ struct MusicPlayerView: View {
                     .compositingGroup()
                 AlbumWaveform(width: OpenPlayer.waveformSize.width, height: OpenPlayer.waveformSize.height)
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    .frame(width: OpenPlayer.waveformSize.width, height: OpenPlayer.waveformSize.height)
+                    .hiddenWhileClosedNotchCovers(vm)
                     // Level with the title's capitals.
                     .padding(.top, OpenPlayer.waveformTop)
                     .frame(maxHeight: .infinity, alignment: .top)

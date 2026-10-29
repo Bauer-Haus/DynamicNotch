@@ -289,6 +289,7 @@ struct NotchView: View {
                 // Like the iPhone: the bars are windows onto blurred album art.
                 AlbumWaveform(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
             }
             .frame(
                 width: max(
