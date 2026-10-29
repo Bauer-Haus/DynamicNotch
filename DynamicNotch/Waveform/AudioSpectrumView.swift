@@ -180,6 +180,9 @@ class AudioSpectrum: NSView {
         animationTimer = timer
         waitingSince = CFAbsoluteTimeGetCurrent()
         heardLive = false
+        // Draw the current levels now rather than one tick (33 ms) later: when the notch opens
+        // or closes, the new waveform would otherwise show a frame or two of dots.
+        tick()
     }
 
     private func stopAnimating() {
