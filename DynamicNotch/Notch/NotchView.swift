@@ -233,6 +233,9 @@ struct NotchView: View {
                 if vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                     MusicLiveActivity()
                         .frame(alignment: .center)
+                        // Arrive solid: fading in on top of the fading-out open cover left
+                        // two half-faded copies, so the art went grey mid-close.
+                        .transition(.asymmetric(insertion: .identity, removal: .opacity))
                 } else if vm.notchState == .open {
                     // The open player starts below the menu bar (or the camera housing).
                     Color.clear
@@ -272,8 +275,9 @@ struct NotchView: View {
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
                 )
 
-            Rectangle()
-                .fill(.black)
+            // Clear, not black: the notch is already black here, and a black fill sat on top
+            // of the cover's corner while it shrank in from the open player.
+            Color.clear
                 .frame(width: vm.closedNotchSize.width + -cornerRadiusInsets.closed.top)
 
             HStack {
