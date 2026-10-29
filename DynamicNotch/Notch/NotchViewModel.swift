@@ -92,11 +92,9 @@ class NotchViewModel: NSObject, ObservableObject {
         return noNotchAndFullscreen ? 0 : closedNotchSize.height
     }
 
+    /// A black strip under the closed notch down to the bottom of the menu bar, when the
+    /// notch is shorter than the menu bar.
     var chinHeight: CGFloat {
-        if !Defaults[.hideTitleBar] {
-            return 0
-        }
-
         guard let currentScreen = screenUUID.flatMap({ NSScreen.screen(withUUID: $0) }) else {
             return 0
         }

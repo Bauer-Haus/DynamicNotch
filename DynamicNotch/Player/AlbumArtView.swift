@@ -52,9 +52,7 @@ struct AlbumArtView: View {
             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
             .clipped()
             .clipShape(
-                AlbumArtShape(openRadius: Defaults[.cornerRadiusScaling]
-                    ? MusicPlayerImageSizes.cornerRadiusInset.opened
-                    : MusicPlayerImageSizes.cornerRadiusInset.closed)
+                AlbumArtShape()
             )
     }
 }

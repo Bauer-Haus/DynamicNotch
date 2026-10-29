@@ -76,13 +76,12 @@ enum MusicPlayerImageSizes {
 /// cover's to the open player's, so both copies of the cover have the same corners at every
 /// size while the notch opens or closes.
 struct AlbumArtShape: Shape {
-    var openRadius: CGFloat = MusicPlayerImageSizes.cornerRadiusInset.opened
-
     func path(in rect: CGRect) -> Path {
         let closed = MusicPlayerImageSizes.size.closed.width
         let opened = MusicPlayerImageSizes.size.opened.width
         let t = min(max((rect.width - closed) / max(opened - closed, 1), 0), 1)
         let closedRadius = MusicPlayerImageSizes.cornerRadiusInset.closed
+        let openRadius = MusicPlayerImageSizes.cornerRadiusInset.opened
         let radius = closedRadius + (openRadius - closedRadius) * t
         return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
     }

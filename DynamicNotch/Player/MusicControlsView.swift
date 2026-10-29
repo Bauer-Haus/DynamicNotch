@@ -14,10 +14,9 @@ import SwiftUI
 struct MusicControlsView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @Default(.musicControlSlots) private var slotConfig
-    @Default(.musicControlSlotLimit) private var slotLimit
 
     var body: some View {
-        let slots = Self.shownSlots(slotConfig, limit: slotLimit)
+        let slots = Self.shownSlots(slotConfig, limit: MusicControlButton.maxSlotCount)
         let cell = Self.cellWidth(count: slots.count)
         // Each control in an equal cell, centred: Apple's spacing for three, closer for more.
         HStack(spacing: 0) {

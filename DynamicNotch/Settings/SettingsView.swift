@@ -2,76 +2,72 @@
 //  SettingsView.swift
 //  DynamicNotch
 //
-//  The Settings window's sidebar and panes.
+//  The Settings window: a sidebar of pages, laid out like System Settings.
 //
 
-import AVFoundation
-import Defaults
-import LaunchAtLogin
 import SwiftUI
 
+/// The pages of the Settings window.
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, notch, music, about
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: "General"
+        case .notch: "Notch"
+        case .music: "Music"
+        case .about: "About"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape.fill"
+        case .notch: "macbook"
+        case .music: "music.note"
+        case .about: "info"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: .gray
+        case .notch: .blue
+        case .music: .pink
+        case .about: .indigo
+        }
+    }
+}
+
 struct SettingsView: View {
-    @State private var selectedTab = "General"
-    @State private var accentColorUpdateTrigger = UUID()
+    @State private var pane: SettingsPane? = .general
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedTab) {
-                NavigationLink(value: "General") {
-                    Label("General", systemImage: "gear")
+            List(SettingsPane.allCases, selection: $pane) { pane in
+                Label {
+                    Text(pane.title)
+                } icon: {
+                    SettingsIcon(symbol: pane.symbol, color: pane.color)
                 }
-                NavigationLink(value: "Appearance") {
-                    Label("Appearance", systemImage: "eye")
-                }
-                NavigationLink(value: "Media") {
-                    Label("Media", systemImage: "play.laptopcomputer")
-                }
-                NavigationLink(value: "Advanced") {
-                    Label("Advanced", systemImage: "gearshape.2")
-                }
-                NavigationLink(value: "About") {
-                    Label("About", systemImage: "info.circle")
-                }
+                .tag(pane)
             }
-            .listStyle(SidebarListStyle())
-            .tint(.effectiveAccent)
             .toolbar(removing: .sidebarToggle)
-            .navigationSplitViewColumnWidth(200)
+            .navigationSplitViewColumnWidth(190)
         } detail: {
             Group {
-                switch selectedTab {
-                case "General":
-                    GeneralSettings()
-                case "Appearance":
-                    AppearanceSettings()
-                case "Media":
-                    MediaSettings()
-                case "Advanced":
-                    AdvancedSettings()
-                case "About":
-                    AboutSettings()
-                default:
-                    GeneralSettings()
+                switch pane ?? .general {
+                case .general: GeneralSettings()
+                case .notch: NotchSettings()
+                case .music: MusicSettings()
+                case .about: AboutSettings()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .formStyle(.grouped)
+            .navigationTitle(pane?.title ?? "General")
         }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar(removing: .sidebarToggle)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("")
-                    .frame(width: 0, height: 0)
-                    .accessibilityHidden(true)
-            }
-        }
-        .formStyle(.grouped)
-        .frame(width: 700)
-        .background(Color(NSColor.windowBackgroundColor))
-        .tint(.effectiveAccent)
-        .id(accentColorUpdateTrigger)
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AccentColorChanged"))) { _ in
-            accentColorUpdateTrigger = UUID()
-        }
+        .frame(minWidth: 700, idealWidth: 720, minHeight: 480, idealHeight: 600)
     }
 }

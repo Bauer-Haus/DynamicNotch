@@ -42,13 +42,11 @@ extension Defaults.Keys {
     static let menubarIcon = Key<Bool>("menubarIcon", default: true)
     static let showOnAllDisplays = Key<Bool>("showOnAllDisplays", default: false)
     static let automaticallySwitchDisplay = Key<Bool>("automaticallySwitchDisplay", default: true)
-    static let releaseName = Key<String>("releaseName", default: "Flying Rabbit 🐇🪽")
     
     // MARK: Behavior
     static let minimumHoverDuration = Key<TimeInterval>("minimumHoverDuration", default: 0.3)
     static let enableHaptics = Key<Bool>("enableHaptics", default: true)
     static let openNotchOnHover = Key<Bool>("openNotchOnHover", default: true)
-    static let extendHoverArea = Key<Bool>("extendHoverArea", default: false)
     static let notchHeightMode = Key<WindowHeightMode>(
         "notchHeightMode",
         default: WindowHeightMode.matchRealNotchSize
@@ -63,13 +61,9 @@ extension Defaults.Keys {
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
     
     // MARK: Appearance
-    static let showEmojis = Key<Bool>("showEmojis", default: false)
     static let enableShadow = Key<Bool>("enableShadow", default: true)
     /// Black rounded corners at the bottom of the screen, matching its top ones.
     static let roundBottomScreenCorners = Key<Bool>("roundBottomScreenCorners", default: true)
-    static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
-
-    static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     
     // MARK: Gestures
     static let enableGestures = Key<Bool>("enableGestures", default: true)
@@ -80,15 +74,10 @@ extension Defaults.Keys {
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
     static let waitInterval = Key<Double>("waitInterval", default: 10) // matches apple's wait time on iPhone
-    static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout
-    )
-    static let musicControlSlotLimit = Key<Int>(
-        "musicControlSlotLimit",
-        default: MusicControlButton.maxSlotCount
     )
     
     // MARK: Fullscreen Media Detection
@@ -99,11 +88,6 @@ extension Defaults.Keys {
     // Apple Music by itself (see setActiveControllerBasedOnPreference).
     static let mediaController = Key<MediaControllerType>("mediaController", default: .nowPlaying)
     
-    // MARK: Advanced Settings
-    static let useCustomAccentColor = Key<Bool>("useCustomAccentColor", default: false)
-    static let customAccentColorData = Key<Data?>("customAccentColorData", default: nil)
-    // Show or hide the title bar
-    static let hideTitleBar = Key<Bool>("hideTitleBar", default: true)
-    
+    // MARK: Housekeeping
     static let didClearLegacyURLCacheV1 = Key<Bool>("didClearLegacyURLCache_v1", default: false)
 }

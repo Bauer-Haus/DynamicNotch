@@ -48,7 +48,7 @@ folder joins the app automatically. Every file starts with a line saying what it
 | `Music` | What's playing: `MusicManager` and the sources (Now Playing, Apple Music, Spotify) |
 | `Waveform` | The live waveform: audio tap, spectrum analysis and the bars |
 | `Screen` | Screen-level features: rounded bottom corners, full-screen detection, Spaces |
-| `Settings` | The Settings window, one file per pane, and every saved setting (`SettingsKeys`) |
+| `Settings` | The Settings window (General, Notch, Music and About pages), its shared row components, and every saved setting (`SettingsKeys`) |
 | `Onboarding` | The first-launch screens |
 | `Support` | Small extensions and helpers |
 | `Resources` | Icons and images, translations, preview assets |

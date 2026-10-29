@@ -53,7 +53,7 @@ struct NotchView: View {
     private let zeroHeightHoverPadding: CGFloat = 10
 
     private var topCornerRadius: CGFloat {
-       ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
+        vm.notchState == .open
                 ? cornerRadiusInsets.opened.top
                 : cornerRadiusInsets.closed.top
     }
@@ -61,7 +61,7 @@ struct NotchView: View {
     private var currentNotchShape: NotchShape {
         NotchShape(
             topCornerRadius: topCornerRadius,
-            bottomCornerRadius: ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
+            bottomCornerRadius: vm.notchState == .open
                 ? cornerRadiusInsets.opened.bottom
                 : cornerRadiusInsets.closed.bottom,
             bottomTravel: vm.notchState == .closed ? closeBottomTravel : nil,
@@ -102,8 +102,7 @@ struct NotchView: View {
                     .padding(
                         .horizontal,
                         vm.notchState == .open
-                        ? Defaults[.cornerRadiusScaling]
-                        ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
+                        ? cornerRadiusInsets.opened.top
                         : cornerRadiusInsets.closed.bottom
                     )
                     // Open: the margins of Apple's MacBook island.
@@ -127,7 +126,7 @@ struct NotchView: View {
                             : vm.notchState == .open ? .black.opacity(0.85)
                             : isHovering ? .black.opacity(0.7) : .clear,
                         radius: vm.notchState == .open ? OpenPlayer.shadowRadius
-                            : Defaults[.cornerRadiusScaling] ? 6 : 4
+                            : 6
                     )
                     .padding(
                         .bottom,
@@ -199,11 +198,6 @@ struct NotchView: View {
                             }
                         }
                         .keyboardShortcut(KeyEquivalent(","), modifiers: .command)
-                        //                    Button("Edit") { // Doesnt work....
-                        //                        let dn = DynamicNotch(content: EditPanelView())
-                        //                        dn.toggle()
-                        //                    }
-                        //                    .keyboardShortcut("E", modifiers: .command)
                     }
                 if vm.chinHeight > 0 {
                     Rectangle()
@@ -270,9 +264,7 @@ struct NotchView: View {
                 .resizable()
                 .clipped()
                 .clipShape(
-                    AlbumArtShape(openRadius: Defaults[.cornerRadiusScaling]
-                        ? MusicPlayerImageSizes.cornerRadiusInset.opened
-                        : MusicPlayerImageSizes.cornerRadiusInset.closed)
+                    AlbumArtShape()
                 )
                 .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                 .frame(

@@ -2,77 +2,53 @@
 //  AboutSettings.swift
 //  DynamicNotch
 //
-//  Settings, About pane: version and links.
+//  Settings, About page: the app, its version and where it lives.
 //
 
-import AVFoundation
-import Defaults
-import LaunchAtLogin
 import SwiftUI
 
 struct AboutSettings: View {
-    @State private var showBuildNumber: Bool = false
-    @Environment(\.openWindow) var openWindow
-    var body: some View {
-        VStack {
-            Form {
-                Section {
-                    HStack {
-                        Text("Release name")
-                        Spacer()
-                        Text(Defaults[.releaseName])
-                            .foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        if showBuildNumber {
-                            Text("(\(Bundle.main.buildVersionNumber ?? ""))")
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(Bundle.main.releaseVersionNumber ?? "unkown")
-                            .foregroundStyle(.secondary)
-                    }
-                    .onTapGesture {
-                        withAnimation {
-                            showBuildNumber.toggle()
-                        }
-                    }
-                } header: {
-                    Text("Version info")
-                }
+    private var version: String {
+        let version = Bundle.main.releaseVersionNumber ?? "?"
+        let build = Bundle.main.buildVersionNumber ?? "?"
+        return "Version \(version) (\(build))"
+    }
 
-                HStack(spacing: 30) {
-                    Spacer(minLength: 0)
-                    Button {
-                        if let url = URL(string: "https://github.com/Bauer-Haus/DynamicNotch") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image("Github")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 18)
-                            Text("GitHub")
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    Spacer(minLength: 0)
+    var body: some View {
+        Form {
+            Section {
+                VStack(spacing: 6) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 96, height: 96)
+                    Text("DynamicNotch")
+                        .font(.title2.weight(.semibold))
+                    Text(version)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
-            VStack(spacing: 0) {
-                Divider()
+
+            Section {
+                Link(destination: URL(string: "https://github.com/Bauer-Haus/DynamicNotch")!) {
+                    HStack {
+                        SettingsLabel("Source code on GitHub", symbol: "chevron.left.forwardslash.chevron.right", color: .gray)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } footer: {
                 Text("Made by BauerHaus · GPL-3.0")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.top, 5)
-                    .padding(.bottom, 7)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .navigationTitle("About")
     }
 }
