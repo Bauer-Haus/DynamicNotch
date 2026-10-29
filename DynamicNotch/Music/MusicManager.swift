@@ -90,6 +90,11 @@ class MusicManager: ObservableObject {
     /// confirmed (player not running, command ignored).
     private var lastReportedState: PlaybackState?
     private var confirmationCheck: Task<Void, Never>?
+    /// A position just shown for a skip or seek: older reports that disagree are ignored until
+    /// the player confirms it or `until` passes. (Re-applying the last report to confirm a
+    /// play press used to put the bar back on the old time for ~1 s.)
+    private var pendingPosition: (position: TimeInterval, at: Date, until: Date)?
+    private static let positionHold: TimeInterval = 2.5
     /// Latest volume waiting to be sent; only the newest matters while dragging.
     private var volumeTarget: Double?
     private var volumeSending = false
@@ -319,6 +324,22 @@ class MusicManager: ObservableObject {
 
             // Fetch lyrics on content change
             self.fetchLyricsIfAvailable(bundleIdentifier: state.bundleIdentifier, title: state.title, artist: state.artist, duration: state.duration)
+        }
+
+        if let pending = pendingPosition {
+            if now >= pending.until {
+                pendingPosition = nil
+            } else {
+                let playing = state.isPlaying
+                let expected = pending.position + (playing ? now.timeIntervalSince(pending.at) : 0)
+                let reported = state.currentTime + (playing ? now.timeIntervalSince(state.lastUpdated) : 0)
+                if abs(reported - expected) < 1.5 {
+                    pendingPosition = nil   // confirmed
+                } else {
+                    state.currentTime = pending.position   // an older report
+                    state.lastUpdated = pending.at
+                }
+            }
         }
 
         let timeChanged = state.currentTime != self.elapsedTime
@@ -740,26 +761,44 @@ class MusicManager: ObservableObject {
         }
     }
 
+    /// Next and previous both land at the start of a song (previous restarts this one if it's
+    /// a few seconds in), so the times jump there at once. Then ask for the real state: Music
+    /// sends no update when it restarts a song, so the bar kept counting from the old time.
     func nextTrack() {
+        showPosition(0)
         Task {
             await activeController?.nextTrack()
+            await activeController?.updatePlaybackInfo()
         }
     }
 
     func previousTrack() {
+        showPosition(0)
         Task {
             await activeController?.previousTrack()
+            await activeController?.updatePlaybackInfo()
         }
     }
 
     func seek(to position: TimeInterval) {
+        showPosition(position)
         Task {
             await activeController?.seek(to: position)
         }
     }
+
     func skip(seconds: TimeInterval) {
-        let newPos = min(max(0, elapsedTime + seconds), songDuration)
+        let newPos = min(max(0, estimatedPlaybackPosition() + seconds), songDuration)
         seek(to: newPos)
+    }
+
+    /// Moves the progress bar and times to `position` now, ahead of the player's confirmation.
+    private func showPosition(_ position: TimeInterval) {
+        guard activeController != nil else { return }
+        let now = Date()
+        elapsedTime = max(0, position)
+        timestampDate = now
+        pendingPosition = (elapsedTime, now, now.addingTimeInterval(Self.positionHold))
     }
     
     /// Shows the new volume at once and sends only the latest level: while the slider is

@@ -20,36 +20,32 @@ struct AlbumArtView: View {
             .hiddenWhileClosedNotchCovers(vm)
     }
 
-    private var albumArtButton: some View {
-        ZStack {
-            Button {
-                musicManager.openMusicApp()
-            } label: {
-                albumArtImage
-            }
-            .buttonStyle(PlainButtonStyle())
-            // Shrink to 85% when paused by padding, not scaleEffect, so the cover's real frame
-            // shrinks too and the closed cover morphs to and from the size you see.
-            .padding(musicManager.isPlaying ? 0 : MusicPlayerImageSizes.size.opened.width * 0.075)
-            
-            albumArtDarkOverlay
-        }
-    }
+    /// Pausing shrinks the cover to 80% and dims it to half brightness, playing brings it
+    /// back, on one spring with a slight overshoot: all fitted to an iPhone screen recording
+    /// (to within ~1 px of its size, frame by frame).
+    static let pausedScale: CGFloat = 0.8
+    static let pausedDim: Double = 0.5
+    static let playPauseSpring = Animation.spring(response: 0.38, dampingFraction: 0.7)
 
-    private var albumArtDarkOverlay: some View {
-        Rectangle()
-            .aspectRatio(1, contentMode: .fit)
-            .foregroundColor(Color.black)
-            .opacity(musicManager.isPlaying ? 0 : 0.8)
-            .blur(radius: 50)
+    private var albumArtButton: some View {
+        Button {
+            musicManager.openMusicApp()
+        } label: {
+            albumArtImage
+        }
+        .buttonStyle(PlainButtonStyle())
+        // Shrink by padding, not scaleEffect, so the cover's real frame shrinks too and the
+        // closed cover morphs to and from the size you see.
+        .padding(musicManager.isPlaying ? 0 : MusicPlayerImageSizes.size.opened.width * (1 - Self.pausedScale) / 2)
+        .animation(Self.playPauseSpring, value: musicManager.isPlaying)
     }
-                
 
     private var albumArtImage: some View {
         Image(nsImage: musicManager.displayedAlbumArt)
             .resizable()
             .aspectRatio(1, contentMode: .fit)
             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+            .overlay(Color.black.opacity(musicManager.isPlaying ? 0 : Self.pausedDim))
             .clipped()
             .clipShape(
                 AlbumArtShape()

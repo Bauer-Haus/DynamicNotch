@@ -143,15 +143,13 @@ struct NotchView: View {
                         alignment: .top
                     )
                     .conditionalModifier(true) { view in
-                        // Same slight bounce as before, settling in ~0.25 s instead of ~0.33 s.
-                        let openAnimation = Animation.spring(response: 0.32, dampingFraction: 0.8, blendDuration: 0)
-                        // An eased curve, not a spring. Measured frame by frame on a recording: a
-                        // no-bounce spring crawled over its last pixels (top corners ~55 ms late, a
-                        // visible adjustment); a slightly bouncy one shrank 1 px too far and came back
-                        // (a twitch). This never overshoots, every part lands within one frame of the
-                        // others, and it settles in ~0.37 s.
+                        // Opening and closing share one eased curve, not a spring. Measured frame by
+                        // frame on a recording: a no-bounce spring crawled over its last pixels (top
+                        // corners ~55 ms late, a visible adjustment); a slightly bouncy one went 1 px
+                        // too far and came back (a twitch). This never overshoots, every part lands
+                        // within one frame of the others, and it settles in ~0.37 s.
                         return view
-                            .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
+                            .animation(closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
                     }
                     .contentShape(Rectangle())
