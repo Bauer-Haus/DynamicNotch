@@ -28,6 +28,9 @@ class NotchViewModel: NSObject, ObservableObject {
     /// notch first, and only then does the closed player (cover and waveform) grow out of it.
     /// True while that shrink runs.
     @Published private(set) var closedPlayerHeld = false
+    /// True while the closed player grows out after that. Its cover and waveform are unlinked
+    /// from the open player's then: linked, they slid up from where the open ones had been.
+    @Published private(set) var closedPlayerGrowing = false
     private var closeID = 0
     /// The close takes 0.4 s but is within a few points of the bare notch by ~0.28 s, so the
     /// player starts then: any later and the bare notch sits there for a beat.
@@ -136,6 +139,7 @@ class NotchViewModel: NSObject, ObservableObject {
     func open() {
         closeID += 1
         closedPlayerHeld = false
+        closedPlayerGrowing = false
         self.notchSize = openNotchSize
         self.notchState = .open
         
@@ -150,7 +154,12 @@ class NotchViewModel: NSObject, ObservableObject {
             closedPlayerHeld = true
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.closedPlayerDelay) { [weak self] in
                 guard let self, self.closeID == id else { return }
+                self.closedPlayerGrowing = true
                 withAnimation(Self.closedPlayerSpring) { self.closedPlayerHeld = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                    guard let self, self.closeID == id else { return }
+                    self.closedPlayerGrowing = false
+                }
             }
         }
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)

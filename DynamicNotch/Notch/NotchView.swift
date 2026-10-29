@@ -77,6 +77,12 @@ struct NotchView: View {
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
     }
 
+    /// The closed cover's and waveform's link to the open player's, cut while they grow out
+    /// of the bare notch after a close.
+    private func closedID(_ id: String) -> String {
+        vm.closedPlayerGrowing ? id + ".growing" : id
+    }
+
     /// Width of the visualizer slot on the right of the closed notch: the album-art square.
     /// The bars are as tall as the art and, at Apple's proportions, ~0.94 of that wide.
     private var visualizerWidth: CGFloat {
@@ -271,7 +277,7 @@ struct NotchView: View {
                 .clipShape(
                     AlbumArtShape()
                 )
-                .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+                .matchedGeometryEffect(id: closedID("albumArt"), in: albumArtNamespace)
                 .frame(
                     width: max(0, vm.effectiveClosedNotchHeight - 12),
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
@@ -285,7 +291,7 @@ struct NotchView: View {
             HStack {
                 // Like the iPhone: the bars are windows onto blurred album art.
                 AlbumWaveform(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
-                    .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                    .matchedGeometryEffect(id: closedID("spectrum"), in: albumArtNamespace)
                     .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
             }
             .frame(
