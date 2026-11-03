@@ -194,13 +194,7 @@ public actor FullScreenMonitor {
     public func screen(for space: SpaceInfo) -> NSScreen? {
         guard let uuid = space.screenUUID else { return nil }
         
-        return NSScreen.screens.first { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            let id = CGDirectDisplayID(number.uint32Value)
-            guard let screenUUID = CGDisplayCreateUUIDFromDisplayID(id) else { return false }
-            let uuidString = CFUUIDCreateString(nil, screenUUID.takeRetainedValue()) as String
-            return uuidString == uuid
-        }
+        return NSScreen.screen(withUUID: uuid)
     }
 }
 

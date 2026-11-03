@@ -19,7 +19,6 @@ struct AudioTapHandle {
 
 enum AudioOutputEvent {
     case defaultDeviceChanged
-    case sampleRateChanged
 }
 
 /// Called on the queue the monitor passes to `startTap`, with the tap's audio mixed to mono.
@@ -67,8 +66,6 @@ final class CoreAudioTapSystem: AudioTapSystem {
     private var running: [Int: Running] = [:]
     private var nextID = 1
     private let lock = NSLock()
-    private var sampleRateListener: AudioObjectPropertyListenerBlock?
-    private var sampleRateDevice = AudioObjectID(kAudioObjectUnknown)
 
     func defaultOutputUID() -> String? {
         Self.defaultOutputDevice().flatMap { Self.stringProperty($0, kAudioDevicePropertyDeviceUID) }
@@ -174,29 +171,13 @@ final class CoreAudioTapSystem: AudioTapSystem {
         AudioHardwareDestroyProcessTap(tap.tap)
     }
 
+    /// Only the system-wide default output is watched. The tap doesn't depend on the output
+    /// device, and listening on the device itself (its sample rate) logged Core Audio errors
+    /// whenever AirPods left: the listener was removed from a device that no longer existed.
     func observeOutput(on queue: DispatchQueue, _ handler: @escaping (AudioOutputEvent) -> Void) {
-        observeSampleRate(on: queue, handler)
         var addr = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
-        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue) { [weak self] _, _ in
-            self?.observeSampleRate(on: queue, handler)
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue) { _, _ in
             handler(.defaultDeviceChanged)
-        }
-    }
-
-    /// AirPods change their sample rate while they connect; follow the current output's.
-    private func observeSampleRate(on queue: DispatchQueue, _ handler: @escaping (AudioOutputEvent) -> Void) {
-        let device = Self.defaultOutputDevice() ?? AudioObjectID(kAudioObjectUnknown)
-        guard device != sampleRateDevice else { return }
-        var addr = Self.address(kAudioDevicePropertyNominalSampleRate)
-        if let sampleRateListener, sampleRateDevice != kAudioObjectUnknown {
-            AudioObjectRemovePropertyListenerBlock(sampleRateDevice, &addr, queue, sampleRateListener)
-        }
-        sampleRateListener = nil
-        sampleRateDevice = device
-        guard device != kAudioObjectUnknown else { return }
-        let listener: AudioObjectPropertyListenerBlock = { _, _ in handler(.sampleRateChanged) }
-        if AudioObjectAddPropertyListenerBlock(device, &addr, queue, listener) == noErr {
-            sampleRateListener = listener
         }
     }
 

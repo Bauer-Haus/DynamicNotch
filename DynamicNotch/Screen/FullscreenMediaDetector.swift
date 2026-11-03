@@ -5,7 +5,7 @@
 //  Decides when to hide the notch for a full-screen app, per screen.
 //
 
-import Foundation
+import AppKit
 import Combine
 import Defaults
 
@@ -52,15 +52,26 @@ final class FullscreenMediaDetector: ObservableObject {
         let option = Defaults[.hideNotchOption]
         let musicSourceBundle = MusicManager.shared.bundleIdentifier
         var newStatus: [String: Bool] = [:]
-        
+        let known = Set(NSScreen.screensByUUID.keys)
+        let primary = NSScreen.screens.first?.displayUUID
+
         for space in spaces {
-            guard let uuid = space.screenUUID else { continue }
+            guard let identifier = space.screenUUID,
+                  let uuid = Self.screenUUID(forSpaceDisplay: identifier, known: known, primary: primary)
+            else { continue }
             newStatus[uuid] = Self.shouldHide(option: option, fullscreenApps: space.runningApps, musicSource: musicSourceBundle)
         }
         
         if newStatus != fullscreenStatus {
             fullscreenStatus = newStatus
         }
+    }
+
+    /// The screen a Space's display identifier refers to. Usually it's the screen's UUID; with
+    /// "Displays have separate Spaces" off and more than one display, macOS reports the
+    /// shared Space as "Main", which matched no screen, so the notch never hid for it.
+    nonisolated static func screenUUID(forSpaceDisplay identifier: String, known: Set<String>, primary: String?) -> String? {
+        known.contains(identifier) ? identifier : primary
     }
 
     /// Whether the closed notch hides on a screen showing these full-screen apps.

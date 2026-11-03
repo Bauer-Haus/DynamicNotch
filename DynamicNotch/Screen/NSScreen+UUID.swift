@@ -9,77 +9,58 @@ import AppKit
 import CoreGraphics
 
 extension NSScreen {
-    /// Returns a persistent UUID for this display
-    var displayUUID: String? {
-        guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return nil
-        }
-        let displayID = CGDirectDisplayID(number.uint32Value)
-        guard let uuid = CGDisplayCreateUUIDFromDisplayID(displayID) else {
-            return nil
-        }
-        let uuidString = CFUUIDCreateString(nil, uuid.takeRetainedValue()) as String
-        return uuidString
+    /// The display's Core Graphics ID, if that display is still online.
+    ///
+    /// An NSScreen kept from before a reconfiguration (waking from sleep gives the built-in
+    /// display a new ID) still reports its old ID; asking Core Graphics about it logged
+    /// "Invalid display" and returned nothing useful. Such a screen reports nil here.
+    var onlineDisplayID: CGDirectDisplayID? {
+        Self.onlineDisplayID(
+            screenNumber: deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
+            online: Self.onlineDisplayIDs())
     }
-    
-    /// Find a screen by its UUID
-    @MainActor static func screen(withUUID uuid: String) -> NSScreen? {
-        return NSScreenUUIDCache.shared.screen(forUUID: uuid)
-    }
-    
-    /// Get UUID to NSScreen mapping for all screens
-    @MainActor static var screensByUUID: [String: NSScreen] {
-        return NSScreenUUIDCache.shared.allScreens
-    }
-}
 
-/// Cache for UUID to NSScreen mappings to avoid repeated lookups
-@MainActor
-final class NSScreenUUIDCache {
-    static let shared = NSScreenUUIDCache()
-    
-    private var cache: [String: NSScreen] = [:]
-    private var observer: Any?
-    
-    private init() {
-        rebuildCache()
-        setupObserver()
+    /// A screen's display ID if it's among the `online` ones.
+    static func onlineDisplayID(screenNumber: NSNumber?, online: [CGDirectDisplayID]) -> CGDirectDisplayID? {
+        guard let screenNumber else { return nil }
+        let id = CGDirectDisplayID(screenNumber.uint32Value)
+        return online.contains(id) ? id : nil
     }
-    
-    deinit {
-        if let observer = observer {
-            NotificationCenter.default.removeObserver(observer)
+
+    /// Returns a persistent UUID for this display (nil for a display that's gone).
+    var displayUUID: String? {
+        Self.displayUUID(for: onlineDisplayID)
+    }
+
+    /// The UUID string of an online display.
+    static func displayUUID(for displayID: CGDirectDisplayID?) -> String? {
+        guard let displayID, let uuid = CGDisplayCreateUUIDFromDisplayID(displayID) else { return nil }
+        return CFUUIDCreateString(nil, uuid.takeRetainedValue()) as String
+    }
+
+    static func onlineDisplayIDs() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return [] }
+        return Array(ids.prefix(Int(count)))
+    }
+
+    /// The connected screen with this UUID.
+    ///
+    /// Looked up afresh each time rather than from a cache: the cache was rebuilt on the same
+    /// screen-change notification other code reacts to, so whichever ran first could get the
+    /// screens from before the change (and position the notch from a stale frame).
+    @MainActor static func screen(withUUID uuid: String) -> NSScreen? {
+        screens.first { $0.displayUUID == uuid }
+    }
+
+    /// UUID to NSScreen mapping for all connected screens.
+    @MainActor static var screensByUUID: [String: NSScreen] {
+        var result: [String: NSScreen] = [:]
+        for screen in screens {
+            if let uuid = screen.displayUUID { result[uuid] = screen }
         }
-    }
-    
-    private func setupObserver() {
-        observer = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // Delivered on the main queue.
-            MainActor.assumeIsolated { self?.rebuildCache() }
-        }
-    }
-    
-    private func rebuildCache() {
-        var newCache: [String: NSScreen] = [:]
-        
-        for screen in NSScreen.screens {
-            if let uuid = screen.displayUUID {
-                newCache[uuid] = screen
-            }
-        }
-        
-        cache = newCache
-    }
-    
-    func screen(forUUID uuid: String) -> NSScreen? {
-        return cache[uuid]
-    }
-    
-    var allScreens: [String: NSScreen] {
-        return cache
+        return result
     }
 }

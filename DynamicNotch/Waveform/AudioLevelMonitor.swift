@@ -250,8 +250,6 @@ final class AudioLevelMonitor {
             switch event {
             case .defaultDeviceChanged:
                 Self.log.notice("Default output changed to \(self.system.defaultOutputName() ?? "none", privacy: .public)")
-            case .sampleRateChanged:
-                Self.log.notice("Output sample rate changed")
             }
             // The tap doesn't depend on the output, so nothing to rebuild. But if the switch
             // does upset it, react at the shortest silence wait rather than a backed-off one.

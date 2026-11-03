@@ -52,9 +52,9 @@ struct WaveformScenarioTests {
         let h = try playingOnSpeakers()
         h.world.connect(W.airPods)
         h.advance(0.1)
-        h.world.post(.sampleRateChanged)    // Bluetooth settles its format
+        h.world.changeFormat()    // Bluetooth settles its format
         h.advance(0.2)
-        h.world.post(.sampleRateChanged)
+        h.world.changeFormat()
         let back = try #require(h.secondsUntilLive(within: 3))
         #expect(back < 1, "bars back as soon as the music is audible again")
         h.advance(20)
@@ -198,9 +198,9 @@ struct WaveformScenarioTests {
         h.world.connect(W.airPods)
         _ = try #require(h.secondsUntilLive(within: 3))
         h.resetCounters()
-        h.world.post(.sampleRateChanged)
+        h.world.changeFormat()
         h.advance(0.3)
-        h.world.post(.sampleRateChanged)
+        h.world.changeFormat()
         h.advance(10)
         #expect(h.isLive)
         #expect(h.deadTime < 1.5)
@@ -211,7 +211,7 @@ struct WaveformScenarioTests {
         h.world.connect(W.airPods)
         h.viewReleases()                    // banner appears mid-switch
         h.advance(0.3)
-        h.world.post(.sampleRateChanged)
+        h.world.changeFormat()
         h.viewRetains()
         let back = try #require(h.secondsUntilLive(within: 3))
         #expect(back < 1.5)

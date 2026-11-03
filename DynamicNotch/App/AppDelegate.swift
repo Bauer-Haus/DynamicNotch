@@ -19,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let vm: NotchViewModel = .init()
     @ObservedObject var coordinator = NotchCoordinator.shared
     var timer: Timer?
-    private var previousScreens: [NSScreen]?
+    private var previousLayout: ScreenLayout?
     private var onboardingWindowController: NSWindowController?
     private var screenLockedObserver: Any?
     private var screenUnlockedObserver: Any?
@@ -287,7 +287,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        previousScreens = NSScreen.screens
+        previousLayout = .current
     }
 
     func deviceHasNotch() -> Bool {
@@ -295,15 +295,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func screenConfigurationDidChange() {
-        let currentScreens = NSScreen.screens
-
-        let screensChanged =
-            currentScreens.count != previousScreens?.count
-            || Set(currentScreens.compactMap { $0.displayUUID })
-                != Set(previousScreens?.compactMap { $0.displayUUID } ?? [])
-            || Set(currentScreens.map { $0.frame }) != Set(previousScreens?.map { $0.frame } ?? [])
-
-        previousScreens = currentScreens
+        let layout = ScreenLayout.current
+        let screensChanged = layout != previousLayout
+        previousLayout = layout
 
         if screensChanged {
             DispatchQueue.main.async { [weak self] in

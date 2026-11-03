@@ -65,9 +65,8 @@ final class ScreenCornerMasks {
 
     /// The radius in points: 3.6 mm at the screen's current scaling (18 pt at 1512 x 982 on a 14").
     static func cornerRadius(on screen: NSScreen) -> CGFloat {
-        guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        else { return 0 }
-        let millimetres = CGDisplayScreenSize(number.uint32Value).width
+        guard let displayID = screen.onlineDisplayID else { return 0 }
+        let millimetres = CGDisplayScreenSize(displayID).width
         guard millimetres > 0 else { return 0 }
         return cornerRadiusMillimetres * screen.frame.width / millimetres
     }

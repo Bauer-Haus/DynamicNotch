@@ -185,6 +185,15 @@ final class AudioWorld: AudioTapSystem {
         if wasDefault { setDefault(fallback) }
     }
 
+    /// The output switches format (Bluetooth settling, a system sound): the music goes quiet
+    /// for a moment, and the app is not told (it no longer listens to the device).
+    func changeFormat() {
+        lock.lock()
+        silentUntil = now() + switchSilence
+        if switchBreaksTaps != .normal { for tap in taps.values { tap.quirk = switchBreaksTaps } }
+        lock.unlock()
+    }
+
     func setDefault(_ device: String?) {
         lock.lock()
         defaultOutput = device
