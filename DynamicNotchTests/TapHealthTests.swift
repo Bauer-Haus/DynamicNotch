@@ -11,16 +11,12 @@ import Testing
 
 @Suite("Audio tap health")
 struct TapHealthTests {
-    static let speakers = "BuiltInSpeakerDevice"
-    static let airPods = "70-F9-4A-BA-07-C9:output"
-
-    /// A tap started at t=100 on the speakers, tapping process 7, delivering music until `now`.
+    /// A tap started at t=100, tapping process 7, delivering music until `now`.
     static func healthy(now: TimeInterval = 110) -> TapHealth.State {
         TapHealth.State(
             now: now, isRunning: true, startedAt: 100,
             lastCallback: now - 0.01, lastSignal: now - 0.01,
             captureConfirmed: true, silentRebuilds: 0,
-            tappedDeviceUID: speakers, currentDeviceUID: speakers, outputStableFor: 60,
             tappedProcesses: [7], currentProcesses: [7])
     }
 
@@ -34,35 +30,15 @@ struct TapHealthTests {
         #expect(TapHealth.check(s) == .notRunning)
     }
 
-    // MARK: The AirPods bug: output switches while music keeps playing.
-
-    @Test func outputSwitchRebuildsOnceSettled() {
+    @Test func outputSwitchSilenceIsRiddenOut() {
+        // Switching output silences the music app for ~0.5 s; the tap itself is fine.
         var s = Self.healthy()
-        s.currentDeviceUID = Self.airPods
-        s.outputStableFor = 0.1
-        #expect(TapHealth.check(s) == nil, "Bluetooth is still connecting: wait")
-        s.outputStableFor = TapHealth.outputSettleTime
-        #expect(TapHealth.check(s) == .outputChanged)
-    }
-
-    @Test func outputSwitchIsCaughtEvenWithoutNotification() {
-        // The change notification never arrived, so outputStableFor is long; the watchdog
-        // still sees the tap is clocked by the wrong device.
-        var s = Self.healthy()
-        s.currentDeviceUID = Self.airPods
-        #expect(TapHealth.check(s) == .outputChanged)
-    }
-
-    @Test func noOutputDeviceDoesNotLoop() {
-        var s = Self.healthy()
-        s.currentDeviceUID = nil
+        s.lastSignal = s.now - 0.7
         #expect(TapHealth.check(s) == nil)
     }
 
     @Test func tapBuiltMidSwitchThatNeverDeliversIsRebuiltQuickly() {
         var s = Self.healthy(now: 101)
-        s.tappedDeviceUID = Self.airPods
-        s.currentDeviceUID = Self.airPods
         s.lastCallback = 0
         s.lastSignal = 0
         #expect(TapHealth.check(s) == nil, "give a new tap a moment")
@@ -155,46 +131,37 @@ struct TapHealthTests {
         #expect(TapHealth.check(s) == nil)
     }
 
-    // MARK: Simulated timeline of the reported bug.
+    // MARK: Simulated timelines
 
-    /// Speakers → AirPods while playing: the watchdog must rebuild within a couple of
-    /// seconds whatever the rebuilt tap does (works, never delivers, or delivers silence).
-    @Test(arguments: ["works", "never delivers", "silent"])
-    func airPodsTimelineRecovers(rebuiltTap: String) {
-        let switchAt: TimeInterval = 200
-        var s = Self.healthy(now: switchAt)
+    /// A tap broken by an output switch (silent or never delivering again) is rebuilt within
+    /// a few seconds, and again if the rebuilt one is broken too.
+    @Test(arguments: ["silent", "dead"])
+    func brokenTapTimelineRecovers(failure: String) {
+        let breakAt: TimeInterval = 200
+        var s = Self.healthy(now: breakAt)
         var rebuilds: [TimeInterval] = []
-        var t = switchAt
-        while t < switchAt + 10 {
+        var t = breakAt
+        var brokenTaps = 2   // the original tap and the first rebuild are broken
+        while t < breakAt + 15 {
             t += 0.5
             s.now = t
-            s.currentDeviceUID = Self.airPods
-            s.outputStableFor = t - switchAt
-            // The old tap keeps running but, as in the bug, passes on nothing after the switch.
-            if s.tappedDeviceUID == Self.speakers { s.lastCallback = t }
             if let reason = TapHealth.check(s) {
                 rebuilds.append(t)
                 if reason == .silent { s.silentRebuilds += 1 }
                 s.startedAt = t
-                s.tappedDeviceUID = Self.airPods
                 s.lastCallback = 0
                 s.lastSignal = 0
+                brokenTaps -= 1
                 continue
             }
-            if s.tappedDeviceUID == Self.airPods {
-                switch rebuiltTap {
-                case "works": s.lastCallback = t; s.lastSignal = t
-                case "silent": s.lastCallback = t
-                default: break
-                }
+            if brokenTaps > 0 {
+                if failure == "silent" { s.lastCallback = t }
+            } else {
+                s.lastCallback = t
+                s.lastSignal = t
             }
         }
-        #expect(rebuilds.first.map { $0 - switchAt } ?? 99 <= 1, "rebuilt for the AirPods within a second")
-        if rebuiltTap == "works" {
-            #expect(rebuilds.count == 1)
-        } else {
-            #expect(rebuilds.count >= 2, "a dead or silent rebuilt tap is rebuilt again")
-            #expect(rebuilds[1] - rebuilds[0] <= 3)
-        }
+        #expect(rebuilds.count == 2, "rebuilt once per broken tap, then left alone")
+        #expect((rebuilds.last ?? 99) - breakAt <= 6)
     }
 }
