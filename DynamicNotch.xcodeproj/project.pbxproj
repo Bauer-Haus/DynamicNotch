@@ -14,6 +14,7 @@
 		1194E8852EA57D23009C82D6 /* SkyLightWindow in Frameworks */ = {isa = PBXBuildFile; productRef = 1194E8842EA57D23009C82D6 /* SkyLightWindow */; };
 		14D0321A2C68F32E0096E6A1 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 14D032192C68F32E0096E6A1 /* LaunchAtLogin */; };
 		B19016222CC15B3D00E3F12E /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = B19016212CC15B3D00E3F12E /* Defaults */; };
+		A7C0FFEE2EB7000100D1A003 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A7C0FFEE2EB7000100D1A002 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +76,7 @@
 				112B0EBB2E30DD5000562D6C /* MediaRemoteAdapter.framework in Frameworks */,
 				14D0321A2C68F32E0096E6A1 /* LaunchAtLogin in Frameworks */,
 				B19016222CC15B3D00E3F12E /* Defaults in Frameworks */,
+				A7C0FFEE2EB7000100D1A003 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,6 +152,7 @@
 			packageProductDependencies = (
 				14D032192C68F32E0096E6A1 /* LaunchAtLogin */,
 				B19016212CC15B3D00E3F12E /* Defaults */,
+				A7C0FFEE2EB7000100D1A002 /* Sparkle */,
 				1194E8842EA57D23009C82D6 /* SkyLightWindow */,
 			);
 			productName = DynamicNotch;
@@ -209,6 +212,7 @@
 			packageReferences = (
 				14D032182C68F32E0096E6A1 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */,
+				A7C0FFEE2EB7000100D1A001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				1194E8832EA57D23009C82D6 /* XCRemoteSwiftPackageReference "SkyLightWindow" */,
 			);
 			productRefGroup = 14CEF4132C5CAED300855D72 /* Products */;
@@ -586,6 +590,14 @@
 				minimumVersion = 9.0.2;
 			};
 		};
+		A7C0FFEE2EB7000100D1A001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -603,6 +615,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */;
 			productName = Defaults;
+		};
+		A7C0FFEE2EB7000100D1A002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A7C0FFEE2EB7000100D1A001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

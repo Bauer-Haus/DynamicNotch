@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct AboutSettings: View {
+    @ObservedObject private var updater = AppUpdater.shared
+
     private var version: String {
         let version = Bundle.main.releaseVersionNumber ?? "?"
         let build = Bundle.main.buildVersionNumber ?? "?"
@@ -29,6 +31,18 @@ struct AboutSettings: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
+            }
+
+            Section {
+                Toggle(isOn: $updater.automaticallyChecksForUpdates) {
+                    SettingsLabel("Automatically check for updates", symbol: "arrow.triangle.2.circlepath", color: .blue)
+                }
+                HStack {
+                    SettingsLabel("Software update", symbol: "arrow.down.circle", color: .green)
+                    Spacer()
+                    Button("Check for Updates…") { updater.checkForUpdates() }
+                        .disabled(!updater.canCheckForUpdates)
+                }
             }
 
             Section {

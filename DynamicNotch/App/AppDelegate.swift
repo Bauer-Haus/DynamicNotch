@@ -195,6 +195,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // waveform can start straight away if music is already on.
         AudioLevelMonitor.shared.prepare()
 
+        AppUpdater.shared.start()
+
         takeOverFromOtherCopies()
 
         // Start tracking display sleep now, so it's known even if music starts while asleep.

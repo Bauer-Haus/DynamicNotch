@@ -7,6 +7,16 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>SUFeedURL</key>
+	<string>https://bauerhaus.io/DynamicNotch/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>P54B5NAkqdFqkr8KsHcxu8GJgOW6ujf5VVdzGmvej70=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>DynamicNotch listens to the audio of your music player so the notch visualizer can move with the music.</string>
 	<key>UTImportedTypeDeclarations</key>
