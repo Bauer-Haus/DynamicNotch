@@ -254,6 +254,7 @@ class AudioSpectrum: NSView {
     func setPlaying(_ playing: Bool) {
         guard playing != isPlaying else { return }
         isPlaying = playing
+        AudioLevelMonitor.log.notice("Waveform told music is \(playing ? "playing" : "paused", privacy: .public)")
         updateRunning()
     }
 }

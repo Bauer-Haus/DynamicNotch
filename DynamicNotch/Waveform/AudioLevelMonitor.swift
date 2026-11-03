@@ -11,6 +11,7 @@ import AppKit
 import AudioToolbox
 import Cocoa
 import CoreAudio
+import os
 import SwiftUI
 
 /// Taps the output audio of the now-playing app and publishes band levels (0...1).
@@ -18,10 +19,18 @@ import SwiftUI
 /// The analysis (SpectrumAnalyzer) reproduces the iPhone Dynamic Island waveform, fitted
 /// to iPhone screen recordings. A 2048-sample window fits them better than 1024 or 4096; it is analysed every 512 samples (~11 ms, so every 60 Hz frame has a fresh
 /// result) and shown directly.
+///
+/// The tap is kept working by two independent paths: Core Audio notifications (output
+/// device or its sample rate changed) rebuild it straight away, and a watchdog checks it
+/// twice a second while the bars are shown (see TapHealth) in case a notification is missed
+/// or a rebuilt tap comes up dead or silent.
 final class AudioLevelMonitor {
     static let shared = AudioLevelMonitor()
 
     static let bandCount = SpectrumAnalyzer.bandCount
+
+    /// `log stream --predicate 'subsystem == "io.bauerhaus.boringnotch" && category == "waveform"'`
+    static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "waveform")
 
     private let queue = DispatchQueue(label: "DynamicNotch.audioLevelMonitor", qos: .userInteractive)
 
@@ -36,31 +45,32 @@ final class AudioLevelMonitor {
     // Touched only on `queue`.
     private var users = 0
     private var targetBundleID: String?
-    private var tappedBundleID: String?
     private var isRunning = false
-    /// Rebuilds of a tap that only ever delivered silence, for the back-off below.
+    /// What the current tap was built for, to notice when either changes.
+    private var tappedDeviceUID: String?
+    private var tappedProcesses: Set<AudioObjectID> = []
+    /// Rebuilds of a tap that delivered only silence, for TapHealth's back-off.
     private var silentRebuilds = 0
-    /// How long a tap may deliver nothing but silence while music plays before it is rebuilt,
-    /// growing with each try so a quiet intro or a blocked permission doesn't rebuild it
-    /// constantly.
-    static let silentRebuildWaits: [TimeInterval] = [3, 10, 30]
+    /// Some tap has delivered real audio since launch, so audio capture is allowed and a
+    /// tap that delivers nothing is broken rather than waiting on the permission dialog.
+    private var captureConfirmed = false
     private var outputDeviceListener: AudioObjectPropertyListenerBlock?
     /// Watches the output device's sample rate: AirPods change it while they connect.
     private var sampleRateListener: AudioObjectPropertyListenerBlock?
     private var sampleRateDevice = AudioObjectID(kAudioObjectUnknown)
+    /// When the default output (or its sample rate) last changed.
+    private var outputChangedAt: CFAbsoluteTime = 0
     /// Bumped on every output change, so only the last of a burst rebuilds the tap.
-    private var deviceChangeGeneration = 0
-    /// How long the output must be stable before the tap is rebuilt for it. A Bluetooth
-    /// device fires several changes while it connects; a tap built mid-switch often
-    /// delivers nothing.
-    static let deviceSettleDelay: TimeInterval = 0.5
-    /// Some tap has delivered real audio since launch, so audio capture is allowed and a
-    /// tap that delivers nothing is broken rather than waiting on the permission dialog.
-    private var captureConfirmed = false
+    private var outputChangeGeneration = 0
+    private var watchdog: DispatchSourceTimer?
+    static let watchdogInterval: TimeInterval = 0.5
+    /// Last start failure logged, so a device that keeps refusing isn't logged every tick.
+    private var lastFailure: String?
 
     private let lock = NSLock()
     private var _levels = [Float](repeating: 0, count: bandCount)
     private var _lastCallback: CFAbsoluteTime = 0
+    private var _lastSignal: CFAbsoluteTime = 0
     private var _heardSignal = false
     /// Bumped on every release, so a delayed teardown can tell it has been superseded.
     private var releaseGeneration = 0
@@ -99,7 +109,89 @@ final class AudioLevelMonitor {
             self.users += 1
             self.startLocked()
             self.observeOutputDevice()
+            self.startWatchdog()
         }
+    }
+
+    func release() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.users = max(0, self.users - 1)
+            guard self.users == 0 else { return }
+            // Opening the notch swaps the closed waveform for the open player's: one view
+            // releases just before the other retains. Keep the tap briefly so the bars carry
+            // on instead of restarting from dots.
+            self.releaseGeneration += 1
+            let generation = self.releaseGeneration
+            self.queue.asyncAfter(deadline: .now() + Self.releaseGrace) { [weak self] in
+                guard let self, self.users == 0, generation == self.releaseGeneration else { return }
+                self.stopWatchdog()
+                self.teardown()
+            }
+        }
+    }
+
+    /// The app whose audio should drive the bars (MusicManager's now-playing bundle id).
+    func setTarget(bundleID: String?) {
+        queue.async { [weak self] in
+            guard let self, self.targetBundleID != bundleID else { return }
+            self.targetBundleID = bundleID
+            if self.users > 0 { self.rebuild("target changed to \(bundleID ?? "none")") }
+        }
+    }
+
+    /// The bars aren't live: check the tap now rather than at the next watchdog tick.
+    func ensureRunning() {
+        queue.async { [weak self] in self?.checkHealth() }
+    }
+
+    // MARK: Keeping the tap alive (runs on `queue`)
+
+    private func startWatchdog() {
+        guard watchdog == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + Self.watchdogInterval, repeating: Self.watchdogInterval,
+                       leeway: .milliseconds(100))
+        timer.setEventHandler { [weak self] in self?.checkHealth() }
+        timer.resume()
+        watchdog = timer
+    }
+
+    private func stopWatchdog() {
+        watchdog?.cancel()
+        watchdog = nil
+    }
+
+    private func checkHealth() {
+        guard users > 0 else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        lock.lock()
+        let lastCallback = _lastCallback
+        let lastSignal = _lastSignal
+        lock.unlock()
+        let state = TapHealth.State(
+            now: now,
+            isRunning: isRunning,
+            startedAt: startedAt,
+            lastCallback: lastCallback,
+            lastSignal: lastSignal,
+            captureConfirmed: captureConfirmed,
+            silentRebuilds: silentRebuilds,
+            tappedDeviceUID: tappedDeviceUID,
+            currentDeviceUID: Self.defaultOutputDeviceUID(),
+            outputStableFor: now - outputChangedAt,
+            tappedProcesses: tappedProcesses,
+            currentProcesses: Set(targetBundleID.map { Self.processObjects(forBundleID: $0) } ?? []))
+        guard let reason = TapHealth.check(state) else { return }
+        if reason == .silent { silentRebuilds += 1 }
+        // A failed start is retried every tick; log it once (startLocked logs the failure).
+        rebuild(reason.rawValue, quiet: reason == .notRunning)
+    }
+
+    private func rebuild(_ why: String, quiet: Bool = false) {
+        if !quiet { Self.log.notice("Rebuilding tap: \(why, privacy: .public)") }
+        teardown()
+        startLocked()
     }
 
     /// Switching output (e.g. to AirPods) changes the device the aggregate is clocked by,
@@ -113,6 +205,7 @@ final class AudioLevelMonitor {
             mElement: kAudioObjectPropertyElementMain)
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
+            Self.log.notice("Default output changed to \(Self.defaultOutputDeviceName() ?? "none", privacy: .public)")
             self.observeOutputSampleRate()
             self.outputDidChange()
         }
@@ -136,6 +229,7 @@ final class AudioLevelMonitor {
         sampleRateDevice = device
         guard device != kAudioObjectUnknown else { return }
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Self.log.notice("Output sample rate changed")
             self?.outputDidChange()
         }
         if AudioObjectAddPropertyListenerBlock(device, &addr, queue, listener) == noErr {
@@ -145,75 +239,13 @@ final class AudioLevelMonitor {
 
     /// Rebuilds the tap once the output has stopped changing.
     private func outputDidChange() {
-        deviceChangeGeneration += 1
-        let generation = deviceChangeGeneration
-        queue.asyncAfter(deadline: .now() + Self.deviceSettleDelay) { [weak self] in
-            guard let self, generation == self.deviceChangeGeneration, self.users > 0 else { return }
-            self.silentRebuilds = 0
-            self.teardown()
-            self.startLocked()
-        }
-    }
-
-    func release() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.users = max(0, self.users - 1)
-            guard self.users == 0 else { return }
-            // Opening the notch swaps the closed waveform for the open player's: one view
-            // releases just before the other retains. Keep the tap briefly so the bars carry
-            // on instead of restarting from dots.
-            self.releaseGeneration += 1
-            let generation = self.releaseGeneration
-            self.queue.asyncAfter(deadline: .now() + Self.releaseGrace) { [weak self] in
-                guard let self, self.users == 0, generation == self.releaseGeneration else { return }
-                self.teardown()
-            }
-        }
-    }
-
-    /// The app whose audio should drive the bars (MusicManager's now-playing bundle id).
-    func setTarget(bundleID: String?) {
-        queue.async { [weak self] in
-            guard let self, self.targetBundleID != bundleID else { return }
-            self.targetBundleID = bundleID
-            if self.users > 0 {
-                self.teardown()
-                self.startLocked()
-            }
-        }
-    }
-
-    /// Re-attach if the tap is missing or stalled (player relaunched, device changed),
-    /// or if the target app has started producing audio since we fell back to all output.
-    func ensureRunning() {
-        queue.async { [weak self] in
-            guard let self, self.users > 0 else { return }
-            let now = CFAbsoluteTimeGetCurrent()
-            self.lock.lock()
-            let lastCallback = self._lastCallback
-            let heardSignal = self._heardSignal
-            self.lock.unlock()
-            // A tap that delivered audio and then stopped is reconnected quickly. One that
-            // hasn't delivered yet is usually waiting on the system-audio permission dialog:
-            // rebuilding it would queue another request, so the dialog kept coming back after
-            // Allow. Give that case 30 s.
-            // Once capture is known to work there is no dialog to wait for: a tap that never
-            // delivers (built while AirPods were still connecting) is rebuilt after 2 s.
-            let delivered = lastCallback >= self.startedAt
-            let firstDeliveryWait: TimeInterval = self.captureConfirmed ? 2 : 30
-            let stalled = self.isRunning
-                && (delivered ? now - lastCallback > 2 : now - self.startedAt > firstDeliveryWait)
-            let betterTarget = self.isRunning && self.tappedBundleID == nil && self.targetBundleID != nil
-                && !Self.processObjects(forBundleID: self.targetBundleID!).isEmpty
-            // Delivering, but only silence while the music plays (this is only called while
-            // it plays and the bars aren't live). Seen after a Bluetooth speaker connected: the
-            // tap rebuilt for it mid-switch passed on nothing but silence until a restart.
-            let wait = Self.silentRebuildWaits[min(self.silentRebuilds, Self.silentRebuildWaits.count - 1)]
-            let silent = self.isRunning && delivered && !heardSignal && now - self.startedAt > wait
-            if silent { self.silentRebuilds += 1 }
-            if stalled || betterTarget || silent { self.teardown() }
-            self.startLocked()
+        outputChangedAt = CFAbsoluteTimeGetCurrent()
+        silentRebuilds = 0
+        outputChangeGeneration += 1
+        let generation = outputChangeGeneration
+        queue.asyncAfter(deadline: .now() + TapHealth.outputSettleTime) { [weak self] in
+            guard let self, generation == self.outputChangeGeneration, self.users > 0 else { return }
+            self.rebuild("output changed")
         }
     }
 
@@ -227,17 +259,22 @@ final class AudioLevelMonitor {
         let desc: CATapDescription
         if processes.isEmpty {
             desc = CATapDescription(stereoGlobalTapButExcludeProcesses: Self.ownProcessObject().map { [$0] } ?? [])
-            tappedBundleID = nil
         } else {
             desc = CATapDescription(stereoMixdownOfProcesses: processes)
-            tappedBundleID = targetBundleID
         }
+        let outputUID = Self.defaultOutputDeviceUID()
+        tappedProcesses = Set(processes)
+        tappedDeviceUID = outputUID
         desc.uuid = UUID()
         desc.muteBehavior = .unmuted
         desc.isPrivate = true
 
         var tap = AudioObjectID(kAudioObjectUnknown)
-        guard AudioHardwareCreateProcessTap(desc, &tap) == noErr else { return }
+        let tapStatus = AudioHardwareCreateProcessTap(desc, &tap)
+        guard tapStatus == noErr else {
+            failed("creating the tap", tapStatus)
+            return
+        }
         tapID = tap
 
         var format = AudioStreamBasicDescription()
@@ -262,13 +299,15 @@ final class AudioLevelMonitor {
                 kAudioSubTapDriftCompensationKey: true,
             ]],
         ]
-        if let outputUID = Self.defaultOutputDeviceUID() {
+        if let outputUID {
             aggregate[kAudioAggregateDeviceMainSubDeviceKey] = outputUID
             aggregate[kAudioAggregateDeviceSubDeviceListKey] = [[kAudioSubDeviceUIDKey: outputUID]]
         }
 
         var agg = AudioObjectID(kAudioObjectUnknown)
-        guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &agg) == noErr else {
+        let aggStatus = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &agg)
+        guard aggStatus == noErr else {
+            failed("creating the aggregate device", aggStatus)
             teardown()
             return
         }
@@ -285,17 +324,32 @@ final class AudioLevelMonitor {
             self?.process(inData)
         }
         guard status == noErr, let procID else {
+            failed("creating the IO proc", status)
             teardown()
             return
         }
         ioProcID = procID
 
-        guard AudioDeviceStart(agg, procID) == noErr else {
+        let startStatus = AudioDeviceStart(agg, procID)
+        guard startStatus == noErr else {
+            failed("starting the aggregate device", startStatus)
             teardown()
             return
         }
         startedAt = CFAbsoluteTimeGetCurrent()
         isRunning = true
+        lastFailure = nil
+        Self.log.notice("""
+            Tap started: \(processes.isEmpty ? "all output" : "\(processes.count) process(es) of \(self.targetBundleID ?? "?")", privacy: .public) \
+            on \(Self.defaultOutputDeviceName() ?? "no output", privacy: .public) at \(self.sampleRate, privacy: .public) Hz
+            """)
+    }
+
+    private func failed(_ step: String, _ status: OSStatus) {
+        let message = "\(step) failed (\(status))"
+        guard message != lastFailure else { return }
+        lastFailure = message
+        Self.log.error("Tap not started: \(message, privacy: .public)")
     }
 
     private func teardown() {
@@ -313,11 +367,13 @@ final class AudioLevelMonitor {
         ioProcID = nil
         aggregateID = AudioObjectID(kAudioObjectUnknown)
         tapID = AudioObjectID(kAudioObjectUnknown)
-        tappedBundleID = nil
+        tappedProcesses = []
+        tappedDeviceUID = nil
         isRunning = false
         lock.lock()
         _levels = [Float](repeating: 0, count: Self.bandCount)
         _lastCallback = 0
+        _lastSignal = 0
         _heardSignal = false
         _signalSamples = 0
         lock.unlock()
@@ -360,13 +416,18 @@ final class AudioLevelMonitor {
         let channelsPerBuffer = buffers.count > 1 ? 1 : max(1, Int(first.mNumberChannels))
         let framesThisCallback = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channelsPerBuffer
 
+        let now = CFAbsoluteTimeGetCurrent()
         if peak > 1e-6 {
             silentRebuilds = 0
+            if !captureConfirmed { Self.log.notice("Audio capture confirmed") }
             captureConfirmed = true
         }
         lock.lock()
-        _lastCallback = CFAbsoluteTimeGetCurrent()
-        if peak > 1e-6 { _heardSignal = true }
+        _lastCallback = now
+        if peak > 1e-6 {
+            _heardSignal = true
+            _lastSignal = now
+        }
         if _heardSignal && _signalSamples < SpectrumAnalyzer.fftSize { _signalSamples += framesThisCallback }
         if analysed { _levels = analyzer.levels }
         lock.unlock()
@@ -421,6 +482,10 @@ final class AudioLevelMonitor {
               device != kAudioObjectUnknown
         else { return nil }
         return device
+    }
+
+    private static func defaultOutputDeviceName() -> String? {
+        defaultOutputDevice().flatMap { stringProperty($0, kAudioObjectPropertyName) }
     }
 
     private static func defaultOutputDeviceUID() -> String? {
