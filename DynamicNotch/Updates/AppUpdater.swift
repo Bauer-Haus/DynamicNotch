@@ -3,9 +3,10 @@
 //  DynamicNotch
 //
 //  Software updates through Sparkle: a daily background check plus "Check for Updates…" in
-//  the menu bar menu and Settings. Releases are built by release.sh and published with an
-//  appcast on bauerhaus.io; each is signed with the EdDSA key whose public half is
-//  SUPublicEDKey in Info.plist, so only our builds are ever installed.
+//  the menu bar menu and Settings. Releases are built by release.sh and published as GitHub
+//  Releases of Bauer-Haus/DynamicNotch, each carrying the DMG and an appcast.xml; the app
+//  reads the latest release's appcast. Every update is signed with the EdDSA key whose
+//  public half is SUPublicEDKey in Info.plist, so only our builds are ever installed.
 //
 
 import AppKit

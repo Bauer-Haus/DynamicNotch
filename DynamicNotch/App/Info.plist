@@ -8,7 +8,7 @@
 		<true/>
 	</dict>
 	<key>SUFeedURL</key>
-	<string>https://bauerhaus.io/DynamicNotch/appcast.xml</string>
+	<string>https://github.com/Bauer-Haus/DynamicNotch/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>P54B5NAkqdFqkr8KsHcxu8GJgOW6ujf5VVdzGmvej70=</string>
 	<key>SUEnableAutomaticChecks</key>

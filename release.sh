@@ -6,6 +6,14 @@
 # Before running: bump MARKETING_VERSION and CURRENT_PROJECT_VERSION in the project, commit,
 # and write release-notes/<version>.html (shown in the update window).
 #
+# Updates are hosted on GitHub Releases of Bauer-Haus/DynamicNotch: each release carries
+# the DMG and appcast.xml, and the app reads
+#   https://github.com/Bauer-Haus/DynamicNotch/releases/latest/download/appcast.xml
+#
+# Usage:
+#   ./release.sh            build, notarize and sign; print how to publish
+#   ./release.sh --publish  also push the commit, tag it and create the GitHub release
+#
 # One-time setup (already done on this Mac: the same team credentials as WindowSmith):
 #   1. Xcode > Settings > Accounts > Manage Certificates > + > Developer ID Application
 #   2. xcrun notarytool store-credentials "$KEYCHAIN_PROFILE" \
@@ -27,7 +35,16 @@ KEYCHAIN_PROFILE="windowsmith"
 # The EdDSA key that signs updates, in the login keychain under this account. Its public
 # half is SUPublicEDKey in DynamicNotch/App/Info.plist.
 SPARKLE_KEY_ACCOUNT="DynamicNotch"
-SITE="https://bauerhaus.io/DynamicNotch"
+REPO="Bauer-Haus/DynamicNotch"
+GIT_REMOTE="fork"
+FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
+
+PUBLISH=0
+case "${1:-}" in
+  --publish) PUBLISH=1 ;;
+  "") ;;
+  *) echo "Usage: $0 [--publish]" >&2; exit 2 ;;
+esac
 
 # Deliberately outside the project. The project used to sit on an iCloud-synced Desktop
 # (its folder is now named .nosync to opt out), and the file provider stamped
@@ -165,6 +182,9 @@ done
   || fail "SUEnableInstallerLauncherService is not set; Sparkle could not install updates."
 APP_KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$APP/Contents/Info.plist" 2>/dev/null || true)
 [ -n "$APP_KEY" ] || fail "SUPublicEDKey is missing from the app's Info.plist."
+APP_FEED=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" 2>/dev/null || true)
+[ "$APP_FEED" = "$FEED_URL" ] || fail "The app's SUFeedURL is '$APP_FEED', not $FEED_URL.
+  Installed copies would never see this release's updates."
 echo "Sandboxed, with Sparkle's installer service enabled (bundle $BUNDLE_ID)."
 
 # The app gets its own notarization pass so the ticket can be stapled directly to the
@@ -247,8 +267,8 @@ KEY_PUBLIC=$("$SPARKLE_BIN/generate_keys" --account "$SPARKLE_KEY_ACCOUNT" -p 2>
 [ "$KEY_PUBLIC" = "$APP_KEY" ] || fail "The keychain's '$SPARKLE_KEY_ACCOUNT' key ($KEY_PUBLIC) is not the app's SUPublicEDKey ($APP_KEY)."
 "$SPARKLE_BIN/generate_appcast" \
   --account "$SPARKLE_KEY_ACCOUNT" \
-  --download-url-prefix "$SITE/downloads/" \
-  --link "$SITE/" \
+  --download-url-prefix "https://github.com/$REPO/releases/download/v$VERSION/" \
+  --link "https://github.com/$REPO/releases/tag/v$VERSION" \
   "$APPCAST_DIR"
 
 APPCAST="$APPCAST_DIR/appcast.xml"
@@ -275,24 +295,48 @@ cp "$DMG" "$APPCAST" "$PROJECT_DIR/build/"
 echo "$PROJECT_DIR/build/$(basename "$DMG")"
 echo "$PROJECT_DIR/build/appcast.xml"
 
-# The download page shows the size in decimal megabytes, the unit Finder and Safari use.
 DMG_MB=$(awk -v bytes="$(stat -f%z "$DMG")" 'BEGIN { printf "%.1f", bytes / 1000000 }')
+printf '\n\033[1;32mBuilt: %s (%s MB)\033[0m\n' "$DMG" "$DMG_MB"
 
-printf '\n\033[1;32mDone: %s\033[0m\n' "$DMG"
-cat <<NEXT
+# Publishing is public and can't be quietly undone, so it only happens when asked for.
+if [ "$PUBLISH" != 1 ]; then
+  cat <<NEXT
 
-Publish in the website repo (Bauer-Haus/BauerHaus):
+Not published. To publish this build as a GitHub Release, run:
 
-  1. Copy DynamicNotch/downloads/$(basename "$DMG")
-     and DynamicNotch/appcast.xml   <- from $APPCAST
-     (The appcast URL is SUFeedURL in the app: $SITE/appcast.xml)
-  2. Point the DynamicNotch page's download link at $VERSION ($DMG_MB MB).
-  3. Commit and push the website repo.
+  ./release.sh --publish
 
-Then, in this repo, tag the commit that was just built:
-
-  git tag -a v$VERSION -m "DynamicNotch $VERSION (build $BUILD_NUM), released $(date +%Y-%m-%d)"
-  git push fork v$VERSION
-
-Installed copies check that appcast daily (or on Check for Updates…) and offer the update.
+(or by hand: push $GIT_REMOTE, tag v$VERSION, and create the release with
+ $(basename "$DMG") and appcast.xml attached; installed copies read appcast.xml
+ from the latest release.)
 NEXT
+  exit 0
+fi
+
+step "Publishing v$VERSION on GitHub"
+command -v gh >/dev/null || fail "The GitHub CLI (gh) is needed to publish."
+[ -z "$(git status --porcelain)" ] || fail "Uncommitted changes; commit them so the tag matches what was built."
+COMMIT=$(git rev-parse HEAD)
+git push "$GIT_REMOTE" HEAD:main
+if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+  [ "$(git rev-list -n1 "v$VERSION")" = "$COMMIT" ] || fail "Tag v$VERSION already exists on a different commit."
+else
+  git tag -a "v$VERSION" -m "DynamicNotch $VERSION (build $BUILD_NUM), released $(date +%Y-%m-%d)"
+fi
+git push "$GIT_REMOTE" "v$VERSION"
+gh release view "v$VERSION" --repo "$REPO" >/dev/null 2>&1 \
+  && fail "A GitHub release v$VERSION already exists. Delete it or bump the version."
+NOTES_ARGS=(--notes "DynamicNotch $VERSION (build $BUILD_NUM)")
+[ -f "$NOTES" ] && NOTES_ARGS=(--notes-file "$NOTES")
+gh release create "v$VERSION" "$DMG" "$APPCAST" \
+  --repo "$REPO" --title "DynamicNotch $VERSION" --latest "${NOTES_ARGS[@]}"
+
+# What installed copies will actually fetch: the feed must resolve and name this build.
+step "Checking the published feed"
+FEED=$(curl -fsSL "$FEED_URL") || fail "Could not fetch $FEED_URL"
+echo "$FEED" | grep -q "<sparkle:version>$BUILD_NUM</sparkle:version>" \
+  || fail "The published feed doesn't list build $BUILD_NUM."
+curl -fsIL "https://github.com/$REPO/releases/download/v$VERSION/$(basename "$DMG")" >/dev/null \
+  || fail "The DMG download link doesn't resolve."
+printf '\n\033[1;32mPublished: https://github.com/%s/releases/tag/v%s\033[0m\n' "$REPO" "$VERSION"
+echo "Installed copies will offer $VERSION at their next check (daily, or Check for Updates…)."
