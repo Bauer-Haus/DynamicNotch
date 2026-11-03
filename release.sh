@@ -43,6 +43,22 @@ DMG_STAGE="$BUILD_DIR/dmg"
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$1" >&2; exit 1; }
 
+# notarytool exits 0 even when Apple rejects the upload ("status: Invalid"), so success is
+# read from its output, and a rejection prints Apple's reasons straight away.
+notarize() {
+  local file="$1" label="$2" out id
+  out=$(xcrun notarytool submit "$file" --keychain-profile "$KEYCHAIN_PROFILE" --wait 2>&1) || true
+  echo "$out"
+  if ! echo "$out" | grep -q "status: Accepted"; then
+    id=$(echo "$out" | grep -oE "id: [0-9a-f-]{36}" | head -1 | cut -d' ' -f2)
+    [ -n "$id" ] && xcrun notarytool log "$id" --keychain-profile "$KEYCHAIN_PROFILE" 2>&1 \
+      | python3 -c 'import json,sys
+d=json.load(sys.stdin)
+for i in d.get("issues") or []: print("  -", i.get("path","").split(".app/")[-1], ":", i.get("message"))' || true
+    fail "$label notarization was not accepted (submission ${id:-unknown}). Apple's reasons are above."
+  fi
+}
+
 step "Checking for a Developer ID Application certificate"
 if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
   fail "No 'Developer ID Application' certificate in the keychain.
@@ -105,6 +121,29 @@ echo "Version $VERSION (build $BUILD_NUM)"
 step "Stripping extended attributes"
 xattr -cr "$APP"
 
+# Prebuilt helpers copied in as resources (MediaRemoteAdapterTestClient, which checks the
+# Now Playing source still works) are re-signed by the export without the hardened runtime,
+# and notarization rejects any executable without it. Sign them with it, then re-seal the
+# app over them, keeping its entitlements.
+step "Signing bundled helpers with the hardened runtime"
+RESIGNED=0
+while IFS= read -r helper; do
+  file -b "$helper" | grep -q "Mach-O" || continue
+  codesign -dv "$helper" 2>&1 | grep -q "(runtime)" && continue
+  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$helper"
+  echo "Signed ${helper#"$APP"/}"
+  RESIGNED=1
+done < <(find "$APP/Contents/Resources" -type f -perm +111)
+if [ "$RESIGNED" = 1 ]; then
+  ENTITLEMENTS_FILE="$BUILD_DIR/app-entitlements.plist"
+  codesign -d --entitlements - --xml "$APP" > "$ENTITLEMENTS_FILE" 2>/dev/null
+  codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS_FILE" --sign "$SIGN_ID" "$APP"
+fi
+UNHARDENED=$(find "$APP/Contents" -type f -perm +111 -exec sh -c \
+  'file -b "$1" | grep -q Mach-O && ! codesign -dv "$1" 2>&1 | grep -q "(runtime)" && echo "$1"' _ {} \;)
+[ -z "$UNHARDENED" ] || fail "Executables without the hardened runtime (notarization would reject them):
+$UNHARDENED"
+
 step "Verifying the signature"
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -d --verbose=2 "$APP" 2>&1 | grep -E "Authority|flags" || true
@@ -135,10 +174,7 @@ echo "Sandboxed, with Sparkle's installer service enabled (bundle $BUNDLE_ID)."
 step "Notarizing the app (pass 1 of 2 — a few minutes)"
 APP_ZIP="$BUILD_DIR/$APP_NAME-app.zip"
 ditto -c -k --keepParent "$APP" "$APP_ZIP"
-if ! xcrun notarytool submit "$APP_ZIP" --keychain-profile "$KEYCHAIN_PROFILE" --wait; then
-  fail "App notarization failed. For the detailed log:
-  xcrun notarytool log <submission-id> --keychain-profile $KEYCHAIN_PROFILE"
-fi
+notarize "$APP_ZIP" "App"
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 
@@ -159,10 +195,7 @@ step "Signing the DMG"
 codesign --sign "$SIGN_ID" --timestamp "$DMG"
 
 step "Notarizing the DMG (pass 2 of 2 — a few minutes)"
-if ! xcrun notarytool submit "$DMG" --keychain-profile "$KEYCHAIN_PROFILE" --wait; then
-  fail "DMG notarization failed. For the detailed log:
-  xcrun notarytool log <submission-id> --keychain-profile $KEYCHAIN_PROFILE"
-fi
+notarize "$DMG" "DMG"
 
 step "Stapling the ticket"
 xcrun stapler staple "$DMG"
