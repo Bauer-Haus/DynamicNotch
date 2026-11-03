@@ -45,6 +45,18 @@ final class AudioLevelMonitor {
     /// constantly.
     static let silentRebuildWaits: [TimeInterval] = [3, 10, 30]
     private var outputDeviceListener: AudioObjectPropertyListenerBlock?
+    /// Watches the output device's sample rate: AirPods change it while they connect.
+    private var sampleRateListener: AudioObjectPropertyListenerBlock?
+    private var sampleRateDevice = AudioObjectID(kAudioObjectUnknown)
+    /// Bumped on every output change, so only the last of a burst rebuilds the tap.
+    private var deviceChangeGeneration = 0
+    /// How long the output must be stable before the tap is rebuilt for it. A Bluetooth
+    /// device fires several changes while it connects; a tap built mid-switch often
+    /// delivers nothing.
+    static let deviceSettleDelay: TimeInterval = 0.5
+    /// Some tap has delivered real audio since launch, so audio capture is allowed and a
+    /// tap that delivers nothing is broken rather than waiting on the permission dialog.
+    private var captureConfirmed = false
 
     private let lock = NSLock()
     private var _levels = [Float](repeating: 0, count: bandCount)
@@ -93,18 +105,53 @@ final class AudioLevelMonitor {
     /// Switching output (e.g. to AirPods) changes the device the aggregate is clocked by,
     /// so rebuild the tap.
     private func observeOutputDevice() {
+        observeOutputSampleRate()
         guard outputDeviceListener == nil else { return }
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            guard let self, self.users > 0 else { return }
-            self.teardown()
-            self.startLocked()
+            guard let self else { return }
+            self.observeOutputSampleRate()
+            self.outputDidChange()
         }
         if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue, listener) == noErr {
             outputDeviceListener = listener
+        }
+    }
+
+    /// Moves the sample-rate listener to the current output device.
+    private func observeOutputSampleRate() {
+        let device = Self.defaultOutputDevice() ?? AudioObjectID(kAudioObjectUnknown)
+        guard device != sampleRateDevice else { return }
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        if let sampleRateListener, sampleRateDevice != kAudioObjectUnknown {
+            AudioObjectRemovePropertyListenerBlock(sampleRateDevice, &addr, queue, sampleRateListener)
+        }
+        sampleRateListener = nil
+        sampleRateDevice = device
+        guard device != kAudioObjectUnknown else { return }
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.outputDidChange()
+        }
+        if AudioObjectAddPropertyListenerBlock(device, &addr, queue, listener) == noErr {
+            sampleRateListener = listener
+        }
+    }
+
+    /// Rebuilds the tap once the output has stopped changing.
+    private func outputDidChange() {
+        deviceChangeGeneration += 1
+        let generation = deviceChangeGeneration
+        queue.asyncAfter(deadline: .now() + Self.deviceSettleDelay) { [weak self] in
+            guard let self, generation == self.deviceChangeGeneration, self.users > 0 else { return }
+            self.silentRebuilds = 0
+            self.teardown()
+            self.startLocked()
         }
     }
 
@@ -151,9 +198,12 @@ final class AudioLevelMonitor {
             // hasn't delivered yet is usually waiting on the system-audio permission dialog:
             // rebuilding it would queue another request, so the dialog kept coming back after
             // Allow. Give that case 30 s.
+            // Once capture is known to work there is no dialog to wait for: a tap that never
+            // delivers (built while AirPods were still connecting) is rebuilt after 2 s.
             let delivered = lastCallback >= self.startedAt
+            let firstDeliveryWait: TimeInterval = self.captureConfirmed ? 2 : 30
             let stalled = self.isRunning
-                && (delivered ? now - lastCallback > 2 : now - self.startedAt > 30)
+                && (delivered ? now - lastCallback > 2 : now - self.startedAt > firstDeliveryWait)
             let betterTarget = self.isRunning && self.tappedBundleID == nil && self.targetBundleID != nil
                 && !Self.processObjects(forBundleID: self.targetBundleID!).isEmpty
             // Delivering, but only silence while the music plays (this is only called while
@@ -310,7 +360,10 @@ final class AudioLevelMonitor {
         let channelsPerBuffer = buffers.count > 1 ? 1 : max(1, Int(first.mNumberChannels))
         let framesThisCallback = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channelsPerBuffer
 
-        if peak > 1e-6 { silentRebuilds = 0 }
+        if peak > 1e-6 {
+            silentRebuilds = 0
+            captureConfirmed = true
+        }
         lock.lock()
         _lastCallback = CFAbsoluteTimeGetCurrent()
         if peak > 1e-6 { _heardSignal = true }
