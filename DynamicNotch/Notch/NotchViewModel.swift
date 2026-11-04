@@ -67,10 +67,7 @@ class NotchViewModel: NSObject, ObservableObject {
         // A new open width applies straight away, even with the notch open.
         Defaults.publisher(.openNotchWidth, options: [])
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self, self.notchState == .open else { return }
-                self.notchSize = openNotchSize(closedWidth: self.closedNotchSize.width)
-            }
+            .sink { [weak self] _ in self?.refreshSizes() }
             .store(in: &cancellables)
     }
     
@@ -143,6 +140,13 @@ class NotchViewModel: NSObject, ObservableObject {
         }
         
         return false
+    }
+
+    /// Measures the closed notch again (after a screen or setting change) and keeps the current
+    /// size in step: the open size if open, the closed size if closed.
+    func refreshSizes() {
+        closedNotchSize = getClosedNotchSize(screenUUID: screenUUID)
+        notchSize = notchState == .open ? openNotchSize(closedWidth: closedNotchSize.width) : closedNotchSize
     }
 
     func open() {

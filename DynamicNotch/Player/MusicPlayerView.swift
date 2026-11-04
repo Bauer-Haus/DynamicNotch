@@ -27,12 +27,13 @@ struct MusicPlayerView: View {
                     .padding(.leading, OpenPlayer.artToText)
                     .drawingGroup()
                     .compositingGroup()
-                AlbumWaveform(width: OpenPlayer.waveformSize.width, height: OpenPlayer.waveformSize.height)
+                let side = OpenPlayer.waveformSide(closedHeight: vm.closedNotchSize.height)
+                AlbumWaveform(width: side, height: side)
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                    .frame(width: OpenPlayer.waveformSize.width, height: OpenPlayer.waveformSize.height)
+                    .frame(width: side, height: side)
                     .hiddenWhileClosedNotchCovers(vm)
                     // Level with the title's capitals.
-                    .padding(.top, OpenPlayer.waveformTop)
+                    .padding(.top, max(0, OpenPlayer.waveformCentre - side / 2))
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.leading, 8)
             }

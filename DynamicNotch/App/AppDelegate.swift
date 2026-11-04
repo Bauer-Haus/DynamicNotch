@@ -338,8 +338,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if let window = windows[uuid], let viewModel = viewModels[uuid] {
                     positionWindow(window, on: screen, changeAlpha: changeAlpha)
 
+                    // An open notch stays open at its new size.
                     if viewModel.notchState == .closed {
                         viewModel.close()
+                    } else {
+                        viewModel.refreshSizes()
                     }
                 }
             }
@@ -361,7 +364,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             vm.screenUUID = selectedScreen.displayUUID
-            vm.notchSize = getClosedNotchSize(screenUUID: selectedScreen.displayUUID)
 
             if window == nil {
                 window = createNotchWindow(for: selectedScreen, with: vm)
@@ -370,8 +372,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let window = window {
                 positionWindow(window, on: selectedScreen, changeAlpha: changeAlpha)
 
+                // An open notch used to shrink to the closed size here while staying open.
                 if vm.notchState == .closed {
                     vm.close()
+                } else {
+                    vm.refreshSizes()
                 }
             }
         }
