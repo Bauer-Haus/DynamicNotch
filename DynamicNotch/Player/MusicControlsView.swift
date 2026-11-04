@@ -14,10 +14,11 @@ import SwiftUI
 struct MusicControlsView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @Default(.musicControlSlots) private var slotConfig
+    @EnvironmentObject var vm: NotchViewModel
 
     var body: some View {
         let slots = Self.shownSlots(slotConfig, limit: MusicControlButton.maxSlotCount)
-        let cell = Self.cellWidth(count: slots.count)
+        let cell = Self.cellWidth(count: slots.count, islandWidth: vm.notchSize.width - 2 * notchTopCornerRadius)
         // Each control in an equal cell, centred: Apple's spacing for three, closer for more.
         HStack(spacing: 0) {
             ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
@@ -35,10 +36,12 @@ struct MusicControlsView: View {
         return config.prefix(limit).filter { $0 != .none }
     }
 
-    /// Width of each control's cell: Apple's pitch, or less when more controls must fit.
-    static func cellWidth(count: Int) -> CGFloat {
-        let room = OpenPlayer.islandWidth - 2 * OpenPlayer.sideInset
-        return min(OpenPlayer.controlPitch, room / CGFloat(max(count, 1)))
+    /// Width of each control's cell: Apple's pitch, or less when more controls must fit. A wider
+    /// island spreads the pitch out by the same proportion; the buttons stay the same size.
+    static func cellWidth(count: Int, islandWidth: CGFloat = OpenPlayer.islandWidth) -> CGFloat {
+        let room = islandWidth - 2 * OpenPlayer.sideInset
+        let pitch = OpenPlayer.controlPitch * max(islandWidth, OpenPlayer.islandWidth) / OpenPlayer.islandWidth
+        return min(pitch, room / CGFloat(max(count, 1)))
     }
 
     @ViewBuilder

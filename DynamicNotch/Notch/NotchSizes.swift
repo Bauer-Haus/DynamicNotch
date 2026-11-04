@@ -57,14 +57,44 @@ enum OpenPlayer {
 /// methods). Closed and open, so the corners don't change size as the notch opens.
 let notchTopCornerRadius: CGFloat = 8
 
-/// Apple's island plus the top corners on each side; 32 pt for the camera housing, then 136.4 pt.
-let openNotchSize: CGSize = .init(width: OpenPlayer.islandWidth + 2 * notchTopCornerRadius, height: 168)
+/// How wide the open island is.
+enum OpenNotchWidth: String, CaseIterable, Defaults.Serializable {
+    /// Apple's MacBook island, the same on every screen.
+    case apple
+    /// A set multiple of the closed notch's width, so opening grows the same amount on every Mac.
+    case matchNotch
+
+    /// The open island is this many times as wide as the closed notch.
+    static let notchMultiple: CGFloat = 2
+    /// Never wider than this, so a wide notch or menu-bar area doesn't give a huge island.
+    static let maxIslandWidth: CGFloat = 420
+
+    /// The island's width (without the top corners) for a closed notch this wide.
+    func islandWidth(closedWidth: CGFloat) -> CGFloat {
+        switch self {
+        case .apple:
+            return OpenPlayer.islandWidth
+        case .matchNotch:
+            return min(max(closedWidth * Self.notchMultiple, OpenPlayer.islandWidth), Self.maxIslandWidth)
+        }
+    }
+}
+
+/// The open notch: the island plus the top corners on each side; 32 pt for the camera housing,
+/// then 136.4 pt.
+func openNotchSize(closedWidth: CGFloat) -> CGSize {
+    let island = Defaults[.openNotchWidth].islandWidth(closedWidth: closedWidth)
+    return .init(width: island + 2 * notchTopCornerRadius, height: openNotchHeight)
+}
+let openNotchHeight: CGFloat = 168
 /// Room around the open island for its shadow, which fades out by ~40 pt below it (fitted to the
 /// iPhone's), with some to spare so it fades out completely (measured on screen).
 let islandShadowMargin: CGFloat = 60
-/// The window is the open island plus room for its shadow. What's outside the island is
-/// see-through and passes clicks through.
-let windowSize: CGSize = .init(width: openNotchSize.width + 2 * islandShadowMargin, height: openNotchSize.height + islandShadowMargin)
+/// The window fits the widest open island plus room for its shadow. What's outside the island
+/// is see-through and passes clicks through.
+let windowSize: CGSize = .init(
+    width: OpenNotchWidth.maxIslandWidth + 2 * notchTopCornerRadius + 2 * islandShadowMargin,
+    height: openNotchHeight + islandShadowMargin)
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: OpenPlayer.bottomCornerRadius), closed: (top: notchTopCornerRadius, bottom: 14))
 
 enum MusicPlayerImageSizes {

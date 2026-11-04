@@ -32,7 +32,7 @@ struct NotchView: View {
     /// One track change per swipe, however far it goes.
     @State private var mediaSwipeHandled = false
     /// The open island's height, measured, so a close can start its bottom from there.
-    @State private var openIslandHeight: CGFloat = openNotchSize.height
+    @State private var openIslandHeight: CGFloat = openNotchHeight
     /// The bottom edge's trip on the current close, and its progress (one per close, animated on
     /// `closeBottomAnimation`). The sides still follow the layout.
     @State private var closeBottomTravel: NotchShape.BottomTravel?

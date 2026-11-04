@@ -22,6 +22,7 @@ struct NotchSettings: View {
     @Default(.nonNotchHeight) var nonNotchHeight
     @Default(.enableShadow) var enableShadow
     @Default(.roundBottomScreenCorners) var roundBottomScreenCorners
+    @Default(.openNotchWidth) var openNotchWidth
 
     var body: some View {
         Form {
@@ -106,6 +107,16 @@ struct NotchSettings: View {
             .onChange(of: nonNotchHeight) { postHeightChange() }
 
             Section("Look") {
+                Picker(selection: $openNotchWidth) {
+                    Text("Apple").tag(OpenNotchWidth.apple)
+                    Text("Match notch").tag(OpenNotchWidth.matchNotch)
+                } label: {
+                    SettingsLabel(
+                        "Open width",
+                        subtitle: "Apple's island size, or twice the width of your notch.",
+                        symbol: "arrow.left.and.right", color: .gray)
+                }
+                .pickerStyle(.segmented)
                 Toggle(isOn: $enableShadow) {
                     SettingsLabel(
                         "Shadow",

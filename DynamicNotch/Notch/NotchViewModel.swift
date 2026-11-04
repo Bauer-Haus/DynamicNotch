@@ -63,6 +63,15 @@ class NotchViewModel: NSObject, ObservableObject {
         closedNotchSize = notchSize
 
         setupDetectorObserver()
+
+        // A new open width applies straight away, even with the notch open.
+        Defaults.publisher(.openNotchWidth, options: [])
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.notchState == .open else { return }
+                self.notchSize = openNotchSize(closedWidth: self.closedNotchSize.width)
+            }
+            .store(in: &cancellables)
     }
     
     private func setupDetectorObserver() {
@@ -140,7 +149,7 @@ class NotchViewModel: NSObject, ObservableObject {
         closeID += 1
         closedPlayerHeld = false
         closedPlayerGrowing = false
-        self.notchSize = openNotchSize
+        self.notchSize = openNotchSize(closedWidth: closedNotchSize.width)
         self.notchState = .open
         
         // Force music information update when notch is opened

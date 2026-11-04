@@ -120,8 +120,28 @@ struct StoredSettingsTests {
 @Suite("Open island shadow")
 struct IslandShadowTests {
     @Test func windowLeavesRoomForTheShadow() {
-        #expect(windowSize.width == openNotchSize.width + 2 * islandShadowMargin)
-        #expect(windowSize.height == openNotchSize.height + islandShadowMargin)
+        let widest = OpenNotchWidth.maxIslandWidth + 2 * notchTopCornerRadius
+        #expect(windowSize.width == widest + 2 * islandShadowMargin)
+        #expect(windowSize.height == openNotchHeight + islandShadowMargin)
+    }
+}
+
+@Suite("Open island width")
+struct OpenWidthTests {
+    @Test func appleWidthIgnoresTheNotch() {
+        #expect(OpenNotchWidth.apple.islandWidth(closedWidth: 185) == OpenPlayer.islandWidth)
+        #expect(OpenNotchWidth.apple.islandWidth(closedWidth: 240) == OpenPlayer.islandWidth)
+    }
+
+    @Test func matchNotchIsTwiceTheNotchWithinLimits() {
+        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 190) == 380)
+        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 100) == OpenPlayer.islandWidth)
+        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 300) == OpenNotchWidth.maxIslandWidth)
+    }
+
+    @Test func controlsKeepApplesPitchAtAppleWidth() {
+        #expect(MusicControlsView.cellWidth(count: 3) == OpenPlayer.controlPitch)
+        #expect(MusicControlsView.cellWidth(count: 3, islandWidth: 380) > OpenPlayer.controlPitch)
     }
 }
 
