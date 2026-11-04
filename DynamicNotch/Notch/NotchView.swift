@@ -240,10 +240,12 @@ struct NotchView: View {
                         // Grows out of the bare notch (after a close has shrunk it, or when music
                         // starts). Stays solid on top while the open player fades in underneath:
                         // two half-faded copies of the cover made the art go grey. On an open it
-                        // leaves once the player has fully faded and scaled in.
+                        // leaves once the player has fully faded and scaled in. Opened while it
+                        // was still growing out (unlinked, so it can't morph), it fades at once.
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.6).combined(with: .opacity),
-                            removal: .opacity.animation(.easeOut(duration: 0.1).delay(0.35))
+                            removal: .opacity.animation(
+                                .easeOut(duration: 0.1).delay(vm.closedPlayerGrowing ? 0 : 0.35))
                         ))
                 } else if vm.notchState == .open {
                     // The open player starts below the menu bar (or the camera housing).

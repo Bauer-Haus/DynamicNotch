@@ -80,6 +80,54 @@ struct NotchOpenCloseTests {
         #expect(!vm.closedPlayerHeld)
     }
 
+    @Test func firstOpenMorphsFromTheClosedPlayer() {
+        let vm = NotchViewModel()
+        vm.open()
+        #expect(vm.openMorphsFromClosedPlayer)
+    }
+
+    /// Reopened before the closed player came back: nothing to morph from.
+    @Test func reopenBeforeTheClosedPlayerReturnsDoesNotWait() async throws {
+        let vm = NotchViewModel()
+        vm.open()
+        vm.close()
+        try await Task.sleep(for: .milliseconds(100))
+        vm.open()
+        #expect(!vm.openMorphsFromClosedPlayer)
+    }
+
+    /// Reopened while the closed player grows out, unlinked: nothing to morph from either.
+    @Test func reopenWhileTheClosedPlayerGrowsDoesNotWait() async throws {
+        let vm = NotchViewModel()
+        vm.open()
+        vm.close()
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(vm.closedPlayerGrowing)
+        vm.open()
+        #expect(!vm.openMorphsFromClosedPlayer)
+    }
+
+    /// Once the close has fully settled, opening morphs again.
+    @Test func reopenAfterTheCloseSettlesMorphs() async throws {
+        let vm = NotchViewModel()
+        vm.open()
+        vm.close()
+        try await Task.sleep(for: .milliseconds(1000))
+        vm.open()
+        #expect(vm.openMorphsFromClosedPlayer)
+    }
+
+    /// Tapping an open notch calls open again; that mustn't change how it opened.
+    @Test func openingWhenOpenKeepsHowItOpened() async throws {
+        let vm = NotchViewModel()
+        vm.open()
+        vm.close()
+        try await Task.sleep(for: .milliseconds(100))
+        vm.open()
+        vm.open()
+        #expect(!vm.openMorphsFromClosedPlayer)
+    }
+
     @Test func closingWhenClosedChangesNothing() {
         let vm = NotchViewModel()
         vm.close()

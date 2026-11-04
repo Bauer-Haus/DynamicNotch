@@ -32,6 +32,11 @@ class NotchViewModel: NSObject, ObservableObject {
     /// from the open player's then: linked, they slid up from where the open ones had been.
     @Published private(set) var closedPlayerGrowing = false
     private var closeID = 0
+    /// Whether this open's cover and waveform morph out of the closed player's. Only when the
+    /// closed player was showing and linked: reopening during a close (before it came back, or
+    /// while it grows out unlinked) has nothing to morph from, and the open player's own copy
+    /// waiting for one left them hidden for a moment, then snapping in.
+    @Published private(set) var openMorphsFromClosedPlayer = true
     /// The close takes 0.4 s but is within a few points of the bare notch by ~0.28 s, so the
     /// player starts then: any later and the bare notch sits there for a beat.
     private static let closedPlayerDelay: TimeInterval = 0.28
@@ -150,6 +155,9 @@ class NotchViewModel: NSObject, ObservableObject {
     }
 
     func open() {
+        if notchState == .closed {
+            openMorphsFromClosedPlayer = !closedPlayerHeld && !closedPlayerGrowing
+        }
         closeID += 1
         closedPlayerHeld = false
         closedPlayerGrowing = false

@@ -68,7 +68,7 @@ private struct HiddenWhileClosedNotchCovers: ViewModifier {
             .opacity(takenOver && !(vm.notchState == .closed && closedNotchShowsPlayer) ? 1 : 0)
             .transaction { $0.animation = nil }
             .onAppear {
-                guard closedNotchShowsPlayer else { takenOver = true; return }
+                guard closedNotchShowsPlayer, vm.openMorphsFromClosedPlayer else { takenOver = true; return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { takenOver = true }
             }
     }
