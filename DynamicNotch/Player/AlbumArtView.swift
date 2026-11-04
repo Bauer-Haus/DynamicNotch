@@ -57,18 +57,31 @@ struct AlbumArtView: View {
 /// top. This hides the open player's copy while that happens, so it can't show round the
 /// edges (squared corners on an open, a blurred glow on a close). On an open it appears
 /// 0.35 s in, when it has settled and the closed copy starts to fade.
+/// With no closed copy to morph from (reopened mid-close, or nothing playing), it fades in as
+/// the notch grows to it: shown at once, it was there before the notch was.
 private struct HiddenWhileClosedNotchCovers: ViewModifier {
     @ObservedObject var vm: NotchViewModel
     @ObservedObject var musicManager = MusicManager.shared
     @ObservedObject var coordinator = NotchCoordinator.shared
     @State private var takenOver = false
+    @State private var fadedIn = false
+
+    /// The notch's open spring is most of the way there by ~0.3 s; this lands with it.
+    static let fadeIn = Animation.easeOut(duration: 0.2).delay(0.13)
 
     func body(content: Content) -> some View {
         content
             .opacity(takenOver && !(vm.notchState == .closed && closedNotchShowsPlayer) ? 1 : 0)
             .transaction { $0.animation = nil }
+            // Outside the transaction above, so this one can animate.
+            .opacity(fadedIn ? 1 : 0)
             .onAppear {
-                guard closedNotchShowsPlayer, vm.openMorphsFromClosedPlayer else { takenOver = true; return }
+                guard closedNotchShowsPlayer, vm.openMorphsFromClosedPlayer else {
+                    takenOver = true
+                    withAnimation(Self.fadeIn) { fadedIn = true }
+                    return
+                }
+                fadedIn = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { takenOver = true }
             }
     }
