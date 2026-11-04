@@ -45,6 +45,14 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         await updatePlaybackInfo()
     }
 
+    /// Music sometimes gives Now Playing a song with no artwork (seen with Apple-made
+    /// playlists), so the previous song's stays or the app icon shows. Then the cover is asked
+    /// for in Music itself, and failing that in Apple's catalog (`CatalogArtwork`).
+    private var artworkFallbackTrack: String?
+    private var artworkFallbackTask: Task<Void, Never>?
+    /// Waits before each look: the art often follows the title by a moment by itself.
+    static let artworkFallbackDelays: [Double] = [1, 1, 1.5, 2, 3]
+
     private var lastMusicItem:
         (title: String, artist: String, album: String, duration: TimeInterval, artworkData: Data?)?
 
@@ -289,13 +297,58 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         )
         
         newPlaybackState.volume = payload.volume ?? (diff ? self.playbackState.volume : 0.5)
-        
+
+        updateArtworkFallback(for: newPlaybackState, artworkArrived: payload.artworkData != nil)
         self.playbackState = newPlaybackState
         
         // Fetch favorite state for supported apps asynchronously
         // await fetchFavoriteStateIfSupported()
     }
     
+    /// On a new Music song that came without artwork, look for it in Music itself; stop
+    /// looking once Now Playing sends some.
+    private func updateArtworkFallback(for state: PlaybackState, artworkArrived: Bool) {
+        let track = Self.trackKey(state)
+        guard track != artworkFallbackTrack else {
+            if artworkArrived { artworkFallbackTask?.cancel() }
+            return
+        }
+        artworkFallbackTrack = track
+        artworkFallbackTask?.cancel()
+        guard Self.needsArtworkFallback(state, artworkArrived: artworkArrived) else { return }
+
+        // What's showing now: the previous song's cover, or none.
+        let stale = state.artwork
+        let (title, artist, album) = (state.title, state.artist, state.album)
+        artworkFallbackTask = Task { [weak self] in
+            for delay in Self.artworkFallbackDelays {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, self?.artworkFallbackTrack == track else { return }
+                var found = await AppleMusicController.scriptArtwork(forTitle: title)
+                // Same as before: an album's next song, or Music hasn't caught up yet.
+                if found == stale { found = nil }
+                if found == nil {
+                    found = await CatalogArtwork.fetch(title: title, artist: artist, album: album)
+                }
+                guard let art = found else { continue }
+                guard let self, !Task.isCancelled, self.artworkFallbackTrack == track else { return }
+                var updated = self.playbackState
+                updated.artwork = art
+                self.playbackState = updated
+                return
+            }
+        }
+    }
+
+    static func trackKey(_ state: PlaybackState) -> String {
+        [state.bundleIdentifier, state.title, state.artist, state.album].joined(separator: "\u{1F}")
+    }
+
+    /// Only Music can be asked, and only a song with no fresh artwork needs it.
+    static func needsArtworkFallback(_ state: PlaybackState, artworkArrived: Bool) -> Bool {
+        state.bundleIdentifier == PlayerScript.musicBundleID && !state.title.isEmpty && !artworkArrived
+    }
+
      private func fetchFavoriteStateIfSupported() async {
          let bundleID = playbackState.bundleIdentifier
         

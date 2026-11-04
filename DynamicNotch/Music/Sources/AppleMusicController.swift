@@ -290,6 +290,35 @@ class AppleMusicController: MediaControllerProtocol {
         return data
     }
 
+    // MARK: - Scripted artwork (for the Now Playing source)
+
+    /// Music's artwork for the current track from its scripting interface, if that track is
+    /// `title`. Never launches Music.
+    static func scriptArtwork(forTitle title: String) async -> Data? {
+        guard PlayerScript.isRunning(PlayerScript.musicBundleID) else { return nil }
+        let script = """
+        tell application "Music"
+            try
+                return {name of current track, data of artwork 1 of current track}
+            on error
+                return {"", ""}
+            end try
+        end tell
+        """
+        guard let result = try? await AppleScriptHelper.execute(script) else { return nil }
+        return artwork(fromScriptResult: result, title: title)
+    }
+
+    /// The artwork in a `{name, artwork data}` script result, if the name is `title`.
+    static func artwork(fromScriptResult result: NSAppleEventDescriptor, title: String) -> Data? {
+        guard result.numberOfItems >= 2,
+              result.atIndex(1)?.stringValue == title,
+              let data = result.atIndex(2)?.data, !data.isEmpty,
+              result.atIndex(2)?.descriptorType != typeUnicodeText
+        else { return nil }
+        return data
+    }
+
     // MARK: - Now Playing artwork (stations)
 
     /// Asks macOS's Now Playing info for Music's artwork, through the same helper the Now
