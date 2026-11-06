@@ -29,6 +29,7 @@ struct NotchView: View {
     @Default(.enableGestures) var enableGestures
     @Default(.closeGestureEnabled) var closeGestureEnabled
     @Default(.mediaSwipeGestures) var mediaSwipeGestures
+    @Default(.closedWaveformStillUntilHovered) var closedWaveformStillUntilHovered
     /// One track change per swipe, however far it goes.
     @State private var mediaSwipeHandled = false
     /// The open island's height, measured, so a close can start its bottom from there.
@@ -291,8 +292,10 @@ struct NotchView: View {
                 .frame(width: vm.closedNotchSize.width + -cornerRadiusInsets.closed.top)
 
             HStack {
-                // Like the iPhone: the bars are windows onto blurred album art.
-                AlbumWaveform(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
+                // Like the iPhone: the bars are windows onto blurred album art. Optionally, like
+                // Apple's MacBook island, they hold still until the pointer is over the notch.
+                AlbumWaveform(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12),
+                              isResting: closedWaveformStillUntilHovered && !isHovering)
                     .matchedGeometryEffect(id: closedID("spectrum"), in: albumArtNamespace)
                     .frame(width: visualizerWidth, height: max(0, vm.effectiveClosedNotchHeight - 12))
             }

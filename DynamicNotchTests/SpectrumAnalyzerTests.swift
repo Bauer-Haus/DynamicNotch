@@ -5,6 +5,7 @@
 //  The visualizer's analysis, fed with synthetic audio instead of a Core Audio tap.
 //
 
+import Defaults
 import Foundation
 import Testing
 @testable import DynamicNotch
@@ -142,5 +143,28 @@ struct BarSmoothingTests {
         #expect(!AudioSpectrum.restsAsDots(heardLive: false, waitingFor: AudioSpectrum.randomFallbackDelay + 0.1))
         // Once real audio has played, gaps stay as dots.
         #expect(AudioSpectrum.restsAsDots(heardLive: true, waitingFor: 60))
+    }
+}
+
+@Suite("Resting waveform")
+struct RestingWaveformTests {
+    /// Apple's closed island: six bars in a diamond, short to tall and back.
+    @Test func isApplesDiamond() {
+        let shape = AudioSpectrum.restingLevels(count: 6)
+        #expect(shape == AudioSpectrum.restingShape)
+        #expect(shape == shape.reversed(), "symmetric")
+        #expect(shape[2] == 1 && shape[3] == 1)
+        #expect(shape[0] < shape[1] && shape[1] < shape[2])
+    }
+
+    /// The app's waveform has always moved; holding it still is opt-in.
+    @Test func closedWaveformMovesByDefault() {
+        #expect(Defaults.Keys.closedWaveformStillUntilHovered.defaultValue == false)
+    }
+
+    @Test func fitsAnyBarCount() {
+        #expect(AudioSpectrum.restingLevels(count: 0).isEmpty)
+        #expect(AudioSpectrum.restingLevels(count: 8).count == 8)
+        #expect(AudioSpectrum.restingLevels(count: 1).count == 1)
     }
 }

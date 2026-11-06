@@ -75,6 +75,9 @@ extension Defaults.Keys {
     
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
+    /// The closed notch's waveform holds still until the pointer is over it, like Apple's
+    /// MacBook island. Off: it always follows the music.
+    static let closedWaveformStillUntilHovered = Key<Bool>("closedWaveformStillUntilHovered", default: false)
     static let waitInterval = Key<Double>("waitInterval", default: 10) // matches apple's wait time on iPhone
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let musicControlSlots = Key<[MusicControlButton]>(

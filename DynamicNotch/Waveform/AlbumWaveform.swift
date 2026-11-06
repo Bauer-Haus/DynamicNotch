@@ -14,6 +14,8 @@ struct AlbumWaveform: View {
     @ObservedObject var musicManager = MusicManager.shared
     let width: CGFloat
     let height: CGFloat
+    /// Bars held still (the closed island while the pointer isn't over it).
+    var isResting: Bool = false
 
     var body: some View {
         Group {
@@ -30,7 +32,7 @@ struct AlbumWaveform: View {
         .frame(minWidth: 0, idealWidth: width, maxWidth: .infinity,
                minHeight: 0, idealHeight: height, maxHeight: .infinity)
         .mask {
-            AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier)
+            AudioSpectrumView(isPlaying: $musicManager.isPlaying, bundleID: musicManager.bundleIdentifier, isResting: isResting)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

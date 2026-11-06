@@ -13,6 +13,7 @@ struct MusicSettings: View {
     @ObservedObject var coordinator = NotchCoordinator.shared
     @Default(.mediaController) var mediaController
     @Default(.coloredSpectrogram) var coloredSpectrogram
+    @Default(.closedWaveformStillUntilHovered) var closedWaveformStillUntilHovered
     @Default(.waitInterval) var waitInterval
     @Default(.hideNotchOption) var hideNotchOption
     @Default(.enableLyrics) var enableLyrics
@@ -46,6 +47,15 @@ struct MusicSettings: View {
                         symbol: "waveform", color: .pink)
                 }
                 if coordinator.musicLiveActivityEnabled {
+                    Picker(selection: $closedWaveformStillUntilHovered) {
+                        Text("Always moving").tag(false)
+                        Text("Still until hovered").tag(true)
+                    } label: {
+                        SettingsLabel(
+                            "Closed waveform",
+                            subtitle: "Still until hovered is like Apple's MacBook island.",
+                            symbol: "waveform.path", color: .pink)
+                    }
                     Toggle(isOn: $coloredSpectrogram) {
                         SettingsLabel(
                             "Album colours in the waveform",

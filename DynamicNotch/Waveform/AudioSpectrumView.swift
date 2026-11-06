@@ -27,6 +27,15 @@ class AudioSpectrum: NSView {
     /// When the bars started waiting for live audio, and whether any has arrived since.
     private var waitingSince: CFAbsoluteTime = 0
     private var heardLive = false
+    /// Held still in `restingShape` instead of following the audio.
+    private var isResting = false
+
+    /// Apple's closed MacBook island holds its bars still in this shape while music plays, and
+    /// only lets them move while the pointer is over it (measured from two screenshots: six
+    /// bars in a diamond, the same in both).
+    static let restingShape: [CGFloat] = [0.3, 0.65, 1, 1, 0.65, 0.3]
+    /// The glide into and out of the resting shape.
+    static let restingGlide: TimeInterval = 0.2
 
     // Proportions and timing measured from the iPhone Dynamic Island (120 fps capture):
     // bars are 0.106 of the max height wide on a 0.167 pitch, rest as round dots and
@@ -119,10 +128,28 @@ class AudioSpectrum: NSView {
     }
 
     private func updateRunning() {
-        if isPlaying && isVisible {
+        if isPlaying && isVisible && !isResting {
             startAnimating()
-        } else if animationTimer != nil || holdsMonitor {
-            stopAnimating()
+            return
+        }
+        if animationTimer != nil || holdsMonitor { stopAnimating() }
+        // Playing but resting: the still shape. Paused: dots.
+        let still = isPlaying && isResting ? Self.restingLevels(count: levels.count) : levels.map { _ in 0 }
+        if still != levels {
+            levels = still
+            targets = still
+            applyLevels(animated: true)
+        }
+    }
+
+    /// `restingShape` for this many bars (stretched to fit if there are ever more or fewer).
+    static func restingLevels(count: Int) -> [CGFloat] {
+        guard count > 0 else { return [] }
+        if count == restingShape.count { return restingShape }
+        return (0 ..< count).map { i in
+            let position = count == 1 ? 0.5 : CGFloat(i) / CGFloat(count - 1)
+            let index = Int((position * CGFloat(restingShape.count - 1)).rounded())
+            return restingShape[index]
         }
     }
 
@@ -146,7 +173,7 @@ class AudioSpectrum: NSView {
 
     /// Bars are centred and grow up and down from the middle, keeping their rounded
     /// ends (bounds change, not a scale transform). Size follows the view height.
-    private func applyLevels() {
+    private func applyLevels(animated: Bool = false) {
         let maxHeight = bounds.height
         let barWidth = max(1, maxHeight * Self.widthRatio)
         let pitch = maxHeight * Self.pitchRatio
@@ -154,7 +181,12 @@ class AudioSpectrum: NSView {
         let totalWidth = (count - 1) * pitch + barWidth
         let originX = (bounds.width - totalWidth) / 2
         CATransaction.begin()
-        CATransaction.setDisableActions(true)
+        if animated {
+            CATransaction.setAnimationDuration(Self.restingGlide)
+            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
+        } else {
+            CATransaction.setDisableActions(true)
+        }
         for (i, bar) in barLayers.enumerated() {
             let h = barWidth + (maxHeight - barWidth) * levels[i]
             bar.cornerRadius = barWidth / 2
@@ -251,6 +283,13 @@ class AudioSpectrum: NSView {
         heardLive || elapsed < randomFallbackDelay
     }
 
+    /// Hold the bars still (the closed island while not hovered) or let them follow the audio.
+    func setResting(_ resting: Bool) {
+        guard resting != isResting else { return }
+        isResting = resting
+        updateRunning()
+    }
+
     func setPlaying(_ playing: Bool) {
         guard playing != isPlaying else { return }
         isPlaying = playing
@@ -262,16 +301,20 @@ class AudioSpectrum: NSView {
 struct AudioSpectrumView: NSViewRepresentable {
     @Binding var isPlaying: Bool
     var bundleID: String? = nil
+    /// Hold the bars still in Apple's resting shape instead of following the audio.
+    var isResting: Bool = false
 
     func makeNSView(context: Context) -> AudioSpectrum {
         let spectrum = AudioSpectrum()
         spectrum.bundleID = bundleID
+        spectrum.setResting(isResting)
         spectrum.setPlaying(isPlaying)
         return spectrum
     }
 
     func updateNSView(_ nsView: AudioSpectrum, context: Context) {
         nsView.bundleID = bundleID
+        nsView.setResting(isResting)
         nsView.setPlaying(isPlaying)
     }
 }
