@@ -120,7 +120,7 @@ struct StoredSettingsTests {
 @Suite("Open island shadow")
 struct IslandShadowTests {
     @Test func windowLeavesRoomForTheShadow() {
-        let widest = OpenNotchWidth.maxIslandWidth + 2 * notchTopCornerRadius
+        let widest = OpenNotchWidth.widestIslandWidth + 2 * notchTopCornerRadius
         #expect(windowSize.width == widest + 2 * islandShadowMargin)
         #expect(windowSize.height == openNotchHeight + islandShadowMargin)
     }
@@ -128,20 +128,25 @@ struct IslandShadowTests {
 
 @Suite("Open island width")
 struct OpenWidthTests {
-    @Test func appleWidthIgnoresTheNotch() {
-        #expect(OpenNotchWidth.apple.islandWidth(closedWidth: 185) == OpenPlayer.islandWidth)
-        #expect(OpenNotchWidth.apple.islandWidth(closedWidth: 240) == OpenPlayer.islandWidth)
+    @Test func appleWidthIsApplesIsland() {
+        #expect(OpenNotchWidth.apple.islandWidth == OpenPlayer.islandWidth)
     }
 
-    @Test func matchNotchIsTwiceTheNotchWithinLimits() {
-        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 190) == 380)
-        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 100) == OpenPlayer.islandWidth)
-        #expect(OpenNotchWidth.matchNotch.islandWidth(closedWidth: 300) == OpenNotchWidth.maxIslandWidth)
+    /// Like Apple's island on the 14" and 16": one size in points, whatever the notch.
+    @Test func largeWidthIsTheSameOnEveryMac() {
+        #expect(OpenNotchWidth.matchNotch.islandWidth == 378)
+        #expect(OpenNotchWidth.widestIslandWidth == 378)
+    }
+
+    /// Settings saved before the width was fixed still read as the large width.
+    @Test func savedSettingStillReads() {
+        #expect(OpenNotchWidth(rawValue: "matchNotch") == .matchNotch)
+        #expect(OpenNotchWidth(rawValue: "apple") == .apple)
     }
 
     @Test func controlsKeepApplesPitchAtAppleWidth() {
         #expect(MusicControlsView.cellWidth(count: 3) == OpenPlayer.controlPitch)
-        #expect(MusicControlsView.cellWidth(count: 3, islandWidth: 380) > OpenPlayer.controlPitch)
+        #expect(MusicControlsView.cellWidth(count: 3, islandWidth: 378) > OpenPlayer.controlPitch)
     }
 }
 

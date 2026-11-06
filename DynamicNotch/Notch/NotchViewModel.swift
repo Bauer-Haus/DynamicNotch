@@ -151,7 +151,7 @@ class NotchViewModel: NSObject, ObservableObject {
     /// size in step: the open size if open, the closed size if closed.
     func refreshSizes() {
         closedNotchSize = getClosedNotchSize(screenUUID: screenUUID)
-        notchSize = notchState == .open ? openNotchSize(closedWidth: closedNotchSize.width) : closedNotchSize
+        notchSize = notchState == .open ? openNotchSize() : closedNotchSize
     }
 
     func open() {
@@ -161,7 +161,7 @@ class NotchViewModel: NSObject, ObservableObject {
         closeID += 1
         closedPlayerHeld = false
         closedPlayerGrowing = false
-        self.notchSize = openNotchSize(closedWidth: closedNotchSize.width)
+        self.notchSize = openNotchSize()
         self.notchState = .open
         
         // Force music information update when notch is opened

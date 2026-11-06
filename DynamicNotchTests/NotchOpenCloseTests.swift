@@ -15,7 +15,7 @@ import Testing
 @MainActor
 struct NotchOpenCloseTests {
     private func openSize(_ vm: NotchViewModel) -> CGSize {
-        openNotchSize(closedWidth: vm.closedNotchSize.width)
+        openNotchSize()
     }
 
     @Test func opensToTheOpenSize() {
@@ -163,16 +163,13 @@ struct NotchOpenCloseTests {
 
         Defaults[.openNotchWidth] = .matchNotch
         try await Task.sleep(for: .milliseconds(100))
-        let expected = OpenNotchWidth.matchNotch.islandWidth(closedWidth: vm.closedNotchSize.width)
-        #expect(vm.notchSize.width == expected + 2 * notchTopCornerRadius)
+        #expect(vm.notchSize.width == OpenNotchWidth.largeIslandWidth + 2 * notchTopCornerRadius)
     }
 
     @Test func openNotchFitsInTheWindow() {
-        for width in [OpenNotchWidth.apple, .matchNotch] {
-            for closedWidth in [0.0, 185, 200, 250, 1000] {
-                let island = width.islandWidth(closedWidth: closedWidth) + 2 * notchTopCornerRadius
-                #expect(island + 2 * islandShadowMargin <= windowSize.width)
-            }
+        for width in OpenNotchWidth.allCases {
+            let island = width.islandWidth + 2 * notchTopCornerRadius
+            #expect(island + 2 * islandShadowMargin <= windowSize.width)
         }
     }
 }

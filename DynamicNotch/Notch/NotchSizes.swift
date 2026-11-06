@@ -63,34 +63,35 @@ enum OpenPlayer {
 /// methods). Closed and open, so the corners don't change size as the notch opens.
 let notchTopCornerRadius: CGFloat = 8
 
-/// How wide the open island is.
+/// How wide the open island is. Like Apple's, the same size in points on every Mac: Apple's
+/// island is 285 pt on both the 14" and the 16" (measured from screenshots of each).
 enum OpenNotchWidth: String, CaseIterable, Defaults.Serializable {
-    /// Apple's MacBook island, the same on every screen.
+    /// Apple's MacBook island.
     case apple
-    /// A set multiple of the closed notch's width, so opening grows the same amount on every Mac.
+    /// Wider, to suit the MacBook notch: Apple's island grows 5x from its 57 pt camera pill,
+    /// which from a 185 pt notch would be ~1000 pt, so this is twice the notch instead (as the
+    /// app measures a 14" MacBook Pro's, 189 pt). The stored name is from when it followed
+    /// each Mac's notch.
     case matchNotch
 
-    /// The open island is this many times as wide as the closed notch.
-    static let notchMultiple: CGFloat = 2
-    /// Never wider than this, so a wide notch or menu-bar area doesn't give a huge island.
-    static let maxIslandWidth: CGFloat = 420
+    static let largeIslandWidth: CGFloat = 378
 
-    /// The island's width (without the top corners) for a closed notch this wide.
-    func islandWidth(closedWidth: CGFloat) -> CGFloat {
+    /// The island's width, without the top corners.
+    var islandWidth: CGFloat {
         switch self {
-        case .apple:
-            return OpenPlayer.islandWidth
-        case .matchNotch:
-            return min(max(closedWidth * Self.notchMultiple, OpenPlayer.islandWidth), Self.maxIslandWidth)
+        case .apple: return OpenPlayer.islandWidth
+        case .matchNotch: return Self.largeIslandWidth
         }
     }
+
+    /// The widest island any setting gives; the window is sized to fit it.
+    static var widestIslandWidth: CGFloat { allCases.map(\.islandWidth).max() ?? largeIslandWidth }
 }
 
 /// The open notch: the island plus the top corners on each side; 32 pt for the camera housing,
 /// then 136.4 pt.
-func openNotchSize(closedWidth: CGFloat) -> CGSize {
-    let island = Defaults[.openNotchWidth].islandWidth(closedWidth: closedWidth)
-    return .init(width: island + 2 * notchTopCornerRadius, height: openNotchHeight)
+func openNotchSize() -> CGSize {
+    .init(width: Defaults[.openNotchWidth].islandWidth + 2 * notchTopCornerRadius, height: openNotchHeight)
 }
 let openNotchHeight: CGFloat = 168
 /// Room around the open island for its shadow, which fades out by ~40 pt below it (fitted to the
@@ -99,7 +100,7 @@ let islandShadowMargin: CGFloat = 60
 /// The window fits the widest open island plus room for its shadow. What's outside the island
 /// is see-through and passes clicks through.
 let windowSize: CGSize = .init(
-    width: OpenNotchWidth.maxIslandWidth + 2 * notchTopCornerRadius + 2 * islandShadowMargin,
+    width: OpenNotchWidth.widestIslandWidth + 2 * notchTopCornerRadius + 2 * islandShadowMargin,
     height: openNotchHeight + islandShadowMargin)
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: notchTopCornerRadius, bottom: OpenPlayer.bottomCornerRadius), closed: (top: notchTopCornerRadius, bottom: 14))
 

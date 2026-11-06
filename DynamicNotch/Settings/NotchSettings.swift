@@ -113,7 +113,7 @@ struct NotchSettings: View {
                 } label: {
                     SettingsLabel(
                         "Open width",
-                        subtitle: "Apple's island size, or twice the width of your notch.",
+                        subtitle: "Apple's island size, or a wider one to suit the notch. The same on every Mac.",
                         symbol: "arrow.left.and.right", color: .gray)
                 }
                 .pickerStyle(.segmented)
