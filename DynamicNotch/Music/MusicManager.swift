@@ -292,6 +292,7 @@ class MusicManager: ObservableObject {
         let artworkChanged = state.artwork != nil && state.artwork != self.artworkData
         let hasContentChange = titleChanged || artistChanged || albumChanged || artworkChanged || bundleChanged
 
+        ArtworkLog.log.debug("Manager title=\(state.title, privacy: .public) art=\(ArtworkLog.id(state.artwork), privacy: .public) had=\(ArtworkLog.id(self.artworkData), privacy: .public) changed=\(hasContentChange) artChanged=\(artworkChanged)")
         // Handle artwork and visual transitions for changed content
         if hasContentChange {
             self.triggerFlipAnimation()
@@ -308,6 +309,7 @@ class MusicManager: ObservableObject {
                     try? await Task.sleep(for: .seconds(Self.artworkWait))
                     guard let self, !Task.isCancelled, self.artworkData == nil,
                           let appIconImage = AppIconAsNSImage(for: bundleID) else { return }
+                    ArtworkLog.log.debug("No cover after \(Self.artworkWait) s: app icon")
                     self.usingAppIconForArtwork = true
                     self.updateAlbumArt(newAlbumArt: appIconImage)
                 }
@@ -648,7 +650,9 @@ class MusicManager: ObservableObject {
             guard let self = self else { return }
 
             // Album art is drawn well under 256 pt even in the open notch; a 512 px copy is plenty.
-            if let artworkImage = NSImage.thumbnail(from: artworkData, maxPixelSize: 512) ?? NSImage(data: artworkData) {
+            let decoded = NSImage.thumbnail(from: artworkData, maxPixelSize: 512) ?? NSImage(data: artworkData)
+            ArtworkLog.log.debug("Decoded \(ArtworkLog.id(artworkData), privacy: .public): \(decoded == nil ? "failed" : "ok", privacy: .public)")
+            if let artworkImage = decoded {
                 DispatchQueue.main.async { [weak self] in
                     self?.usingAppIconForArtwork = false
                     self?.updateAlbumArt(newAlbumArt: artworkImage)

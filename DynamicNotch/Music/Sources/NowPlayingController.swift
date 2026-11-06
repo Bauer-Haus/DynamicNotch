@@ -298,6 +298,7 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         
         newPlaybackState.volume = payload.volume ?? (diff ? self.playbackState.volume : 0.5)
 
+        ArtworkLog.log.debug("NowPlaying diff=\(diff) title=\(newPlaybackState.title, privacy: .public) sent=\(ArtworkLog.id(payload.artworkData.flatMap { Data(base64Encoded: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }), privacy: .public) state=\(ArtworkLog.id(newPlaybackState.artwork), privacy: .public)")
         updateArtworkFallback(for: newPlaybackState, artworkArrived: payload.artworkData != nil)
         self.playbackState = newPlaybackState
         
@@ -332,6 +333,7 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
                 }
                 guard let art = found else { continue }
                 guard let self, !Task.isCancelled, self.artworkFallbackTrack == track else { return }
+                ArtworkLog.log.debug("Fallback found \(ArtworkLog.id(art), privacy: .public) for \(title, privacy: .public)")
                 var updated = self.playbackState
                 updated.artwork = art
                 self.playbackState = updated

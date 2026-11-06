@@ -45,3 +45,19 @@ extension PlaybackState: Equatable {
             && lhs.isFavorite == rhs.isFavorite
     }
 }
+
+import os
+
+/// Where each song's cover comes from and where it goes: `log show --predicate
+/// 'subsystem == "io.bauerhaus.boringnotch" && category == "artwork"'`.
+enum ArtworkLog {
+    static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "artwork")
+
+    /// A short fingerprint of a cover, to tell covers apart in the log.
+    static func id(_ data: Data?) -> String {
+        guard let data, !data.isEmpty else { return "none" }
+        var hash: UInt64 = 1469598103934665603
+        for byte in data.prefix(4096) { hash = (hash ^ UInt64(byte)) &* 1099511628211 }
+        return String(hash ^ UInt64(data.count), radix: 16).suffix(8) + "/\(data.count)"
+    }
+}

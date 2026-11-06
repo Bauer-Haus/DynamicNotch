@@ -163,6 +163,7 @@ class AppleMusicController: MediaControllerProtocol {
     private func performPlaybackInfoUpdate() async {
         guard let descriptor = try? await fetchPlaybackInfoAsync() else { return }
         guard descriptor.numberOfItems >= 11 else { return }
+        let previousAlbum = self.playbackState.album
         var updatedState = self.playbackState
         
         updatedState.isPlaying = descriptor.atIndex(1)?.booleanValue ?? false
@@ -181,13 +182,18 @@ class AppleMusicController: MediaControllerProtocol {
             artworkTrackID = trackID
             artworkRetryTask?.cancel()
             let previous = artworkData
-            let fresh = trackID.isEmpty ? nil : await fetchArtwork(title: updatedState.title)
-            if let fresh, fresh != previous {
+            let song = Song(title: updatedState.title, artist: updatedState.artist, album: updatedState.album)
+            let sameAlbum = Self.isSameAlbum(song.album, previousAlbum)
+            let fresh = trackID.isEmpty ? nil : await fetchArtwork(title: song.title)
+            if let fresh, Self.accepts(fresh, previous: previous, sameAlbum: sameAlbum) {
                 artworkData = fresh
             } else if !trackID.isEmpty {
-                // On stations Music still has the previous song's artwork (or none) when the
-                // track changes. Keep showing what we have and look again until it updates.
-                retryArtwork(for: trackID, title: updatedState.title, previous: previous, latest: fresh)
+                // Music often has the previous song's artwork (or none) when the track changes.
+                // Only an album's next song may keep it; for any other, show none (the notch
+                // keeps the old cover a moment, then the app icon) rather than the wrong one,
+                // and look again until the right one comes.
+                if !sameAlbum { artworkData = nil }
+                retryArtwork(for: trackID, song: song, previous: previous, sameAlbum: sameAlbum)
             } else {
                 artworkData = nil
             }
@@ -242,22 +248,49 @@ class AppleMusicController: MediaControllerProtocol {
 
     /// Delays before each new look at a station track's artwork (about 8 s in all).
     static let artworkRetryDelays: [Double] = [0.5, 1, 1.5, 2, 3]
+    /// After this many looks without it, ask Apple's catalog too.
+    static let catalogAfterTries = 2
 
-    private func retryArtwork(for trackID: String, title: String, previous: Data?, latest: Data?) {
+    struct Song: Equatable {
+        var title: String
+        var artist: String
+        var album: String
+    }
+
+    /// Whether two songs are from the same album, so the same cover is right for both.
+    static func isSameAlbum(_ album: String, _ previous: String) -> Bool {
+        let unknown: Set<String> = ["", "Unknown", "Self Love"]
+        return !unknown.contains(album) && album == previous
+    }
+
+    /// Whether `art` can be the new song's cover: a different one from before, or the same
+    /// one when the song is from the same album.
+    static func accepts(_ art: Data, previous: Data?, sameAlbum: Bool) -> Bool {
+        art != previous || sameAlbum
+    }
+
+    private func retryArtwork(for trackID: String, song: Song, previous: Data?, sameAlbum: Bool) {
         artworkRetryTask = Task { [weak self] in
-            var latest = latest
-            for delay in Self.artworkRetryDelays {
+            var latest: Data?
+            for (index, delay) in Self.artworkRetryDelays.enumerated() {
                 try? await Task.sleep(for: .seconds(delay))
                 guard let self, !Task.isCancelled, self.artworkTrackID == trackID else { return }
-                latest = await self.fetchArtwork(title: title)
-                if let latest, latest != previous {
-                    self.publishArtwork(latest)
+                latest = await self.fetchArtwork(title: song.title)
+                if let art = latest, Self.accepts(art, previous: previous, sameAlbum: sameAlbum) {
+                    self.publishArtwork(art)
+                    return
+                }
+                if index + 1 == Self.catalogAfterTries,
+                   let art = await CatalogArtwork.fetch(title: song.title, artist: song.artist, album: song.album) {
+                    guard !Task.isCancelled, self.artworkTrackID == trackID else { return }
+                    self.publishArtwork(art)
                     return
                 }
             }
-            // Never changed: consecutive songs from the same album really share artwork.
             guard let self, !Task.isCancelled, self.artworkTrackID == trackID else { return }
-            self.publishArtwork(latest)
+            // The album's next song really can share the cover; any other gets none rather
+            // than the last song's.
+            if sameAlbum { self.publishArtwork(latest ?? previous) }
         }
     }
 
@@ -269,11 +302,12 @@ class AppleMusicController: MediaControllerProtocol {
         playbackState = state
     }
 
-    /// The current track's artwork. Station (radio) tracks have none in Music's scripting
-    /// interface, so for those it comes from macOS's Now Playing info instead.
+    /// The current track's artwork. macOS's Now Playing info comes first: it is checked against
+    /// the song's title, and it is what Control Center shows. Music's scripting interface can
+    /// still hold another song's cover, or none, for songs streamed from Apple Music.
     private func fetchArtwork(title: String) async -> Data? {
-        if let data = await scriptArtwork() { return data }
-        return await Self.nowPlayingArtwork(title: title)
+        if let data = await Self.nowPlayingArtwork(title: title) { return data }
+        return await scriptArtwork()
     }
 
     private func scriptArtwork() async -> Data? {

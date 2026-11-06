@@ -172,3 +172,33 @@ struct CatalogArtworkTests {
         #expect(url?.query?.contains("term=Morgan%20Wallen%20Been%20By%20Now") == true)
     }
 }
+
+@Suite("Apple Music source: the right cover for each song")
+struct AppleMusicCoverTests {
+    private let old = Data([1, 2, 3]), new = Data([4, 5, 6])
+
+    @Test func takesADifferentCover() {
+        #expect(AppleMusicController.accepts(new, previous: old, sameAlbum: false))
+    }
+
+    /// The bug: Music still had the last song's cover, and it stayed on a new album's song.
+    @Test func refusesTheLastSongsCoverOnAnotherAlbum() {
+        #expect(!AppleMusicController.accepts(old, previous: old, sameAlbum: false))
+    }
+
+    @Test func keepsTheCoverForTheAlbumsNextSong() {
+        #expect(AppleMusicController.accepts(old, previous: old, sameAlbum: true))
+    }
+
+    @Test func sameAlbumNeedsARealAlbumName() {
+        #expect(AppleMusicController.isSameAlbum("Cloud 9", "Cloud 9"))
+        #expect(!AppleMusicController.isSameAlbum("Cloud 9", "The Way I Am"))
+        #expect(!AppleMusicController.isSameAlbum("", ""))
+        #expect(!AppleMusicController.isSameAlbum("Unknown", "Unknown"))
+    }
+
+    @Test func asksTheCatalogBeforeGivingUp() {
+        #expect(AppleMusicController.catalogAfterTries >= 1)
+        #expect(AppleMusicController.catalogAfterTries < AppleMusicController.artworkRetryDelays.count)
+    }
+}
