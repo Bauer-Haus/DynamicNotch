@@ -66,6 +66,14 @@ struct StationArtworkTests {
         #expect(delays == delays.sorted(), "waits grow, never shrink")
     }
 
+    @Test func keepsLookingLongerOnAStation() {
+        // A station song's cover reached Now Playing more than 12 s after its title.
+        let delays = AppleMusicController.stationArtworkRetryDelays
+        #expect(delays.reduce(0, +) >= 25 && delays.reduce(0, +) <= 40)
+        #expect(delays == delays.sorted(), "waits grow, never shrink")
+        #expect(AppleMusicController.catalogAfterTries < delays.count)
+    }
+
     @Test func nowPlayingWaitsBrieflyBeforeShowingTheAppIcon() {
         #expect(MusicManager.artworkWait >= 0.5 && MusicManager.artworkWait <= 3)
     }
