@@ -19,7 +19,7 @@ struct AlbumWaveform: View {
 
     var body: some View {
         Group {
-            if Defaults[.coloredSpectrogram], let backdrop = musicManager.visualizerBackdrop {
+            if let backdrop = musicManager.visualizerBackdrop {
                 Image(nsImage: backdrop)
                     .resizable()
                     .interpolation(.high)

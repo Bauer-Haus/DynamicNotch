@@ -2,7 +2,7 @@
 //  MusicSettings.swift
 //  DynamicNotch
 //
-//  Settings, Music page: the music source, the closed notch, full screen and the open
+//  Settings, Music page: the music source, the collapsed notch, full screen and the open
 //  player's controls.
 //
 
@@ -12,7 +12,6 @@ import SwiftUI
 struct MusicSettings: View {
     @ObservedObject var coordinator = NotchCoordinator.shared
     @Default(.mediaController) var mediaController
-    @Default(.coloredSpectrogram) var coloredSpectrogram
     @Default(.closedWaveformStillUntilHovered) var closedWaveformStillUntilHovered
     @Default(.waitInterval) var waitInterval
     @Default(.hideNotchOption) var hideNotchOption
@@ -39,7 +38,7 @@ struct MusicSettings: View {
                 }
             }
 
-            Section("Closed notch") {
+            Section("Collapsed notch") {
                 Toggle(isOn: $coordinator.musicLiveActivityEnabled.animation()) {
                     SettingsLabel(
                         "Show what's playing",
@@ -52,15 +51,9 @@ struct MusicSettings: View {
                         Text("Still until hovered").tag(true)
                     } label: {
                         SettingsLabel(
-                            "Closed waveform",
+                            "Collapsed waveform",
                             subtitle: "Still until hovered is like Apple's MacBook island.",
                             symbol: "waveform.path", color: .pink)
-                    }
-                    Toggle(isOn: $coloredSpectrogram) {
-                        SettingsLabel(
-                            "Album colours in the waveform",
-                            subtitle: "Otherwise the bars are grey.",
-                            symbol: "paintpalette.fill", color: .pink)
                     }
                     Stepper(value: $waitInterval, in: 0...10, step: 1) {
                         HStack {

@@ -135,8 +135,7 @@ struct NotchView: View {
                     // Open: the iPhone's faint shadow, fitted to its screenshots (darkens the
                     // background ~40% at the edge, fading out by ~40 pt). Closed: a small hover shadow.
                     .shadow(
-                        color: !Defaults[.enableShadow] ? .clear
-                            : vm.notchState == .open ? .black.opacity(0.85)
+                        color: vm.notchState == .open ? .black.opacity(0.85)
                             : isHovering ? .black.opacity(0.7) : .clear,
                         radius: vm.notchState == .open ? OpenPlayer.shadowRadius
                             : 6

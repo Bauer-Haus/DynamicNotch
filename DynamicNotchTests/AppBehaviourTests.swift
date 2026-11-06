@@ -205,4 +205,9 @@ struct ScreenCornerTests {
         // 3.6 mm on a 302.4 mm wide panel shown as 1512 pt.
         #expect(abs(ScreenCornerMasks.cornerRadiusMillimetres * 1512 / 302.4 - 18) < 0.01)
     }
+
+    @Test func windowServerRadiusScalesToTheMeasuredCorner() {
+        // The 14" MacBook Pro's panel reports 20.19 pt at 1512 x 982.
+        #expect(abs(20.19 * ScreenCornerMasks.systemRadiusScale - 18) < 0.01)
+    }
 }

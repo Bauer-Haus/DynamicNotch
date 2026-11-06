@@ -12,17 +12,22 @@ import Combine
 import SwiftUI
 
 /// Black rounded corners at the bottom of the built-in notched screen, so it matches its top
-/// corners. Measured from a photo of a 14" MacBook Pro's top corner against an on-screen
-/// grid: an Apple continuous corner of 18 pt at 1512 x 982 (36 pixels, 3.6 mm), within
-/// ~0.1 pt along the whole curve. Clicks pass through, and like the real corners they don't
+/// corners. The size comes from the window server, which knows each MacBook panel's own
+/// corner radius (it differs by model and screen size). Its figure is for a slightly
+/// different curve from Apple's continuous corner, so it's scaled to match a photo of a 14"
+/// MacBook Pro's top corner against an on-screen grid: a continuous corner of 18 pt at
+/// 1512 x 982 (3.6 mm), within ~0.1 pt along the whole curve, where the window server says
+/// 20.19 pt. Clicks pass through, and like the real corners they don't
 /// show in screenshots or recordings. They sit above every window, full-screen apps and the
 /// lock screen included. Settings can turn them off.
 @MainActor
 final class ScreenCornerMasks {
     static let shared = ScreenCornerMasks()
 
-    /// The top corners' radius on the panel itself.
+    /// Fallback when the window server gives no radius: the 14" MacBook Pro's, on the panel itself.
     static let cornerRadiusMillimetres: CGFloat = 3.6
+    /// The continuous-corner radius that matches the window server's figure (18 / 20.19, see above).
+    static let systemRadiusScale: CGFloat = 18 / 20.19
     /// A continuous corner curves in from ~1.5x its radius along each edge.
     static let maskSizeFactor: CGFloat = 1.6
 
@@ -63,12 +68,40 @@ final class ScreenCornerMasks {
         }
     }
 
-    /// The radius in points: 3.6 mm at the screen's current scaling (18 pt at 1512 x 982 on a 14").
+    /// The radius in points at the screen's current scaling: the panel's own, from the window
+    /// server, or 3.6 mm (18 pt at 1512 x 982 on a 14") if it has none.
     static func cornerRadius(on screen: NSScreen) -> CGFloat {
         guard let displayID = screen.onlineDisplayID else { return 0 }
+        if let radii = systemCornerRadii(displayID) {
+            // Already round at the bottom (or not a notched panel): nothing to add.
+            guard radii.bottom < 1, radii.top > 0 else { return 0 }
+            return radii.top * systemRadiusScale
+        }
         let millimetres = CGDisplayScreenSize(displayID).width
         guard millimetres > 0 else { return 0 }
         return cornerRadiusMillimetres * screen.frame.width / millimetres
+    }
+
+    private typealias GetCornerRadii = @convention(c) (
+        CGDirectDisplayID, UnsafeMutablePointer<Double>?, UnsafeMutablePointer<Double>?,
+        UnsafeMutablePointer<Double>?, UnsafeMutablePointer<Double>?
+    ) -> Int32
+
+    /// SkyLight's private `SLSDisplayGetCornerRadii`: the panel's corner radii in points at the
+    /// current scaling, bottom pair first. Nil if it isn't there or fails.
+    private static let getCornerRadii: GetCornerRadii? = {
+        guard let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY),
+              let symbol = dlsym(handle, "SLSDisplayGetCornerRadii") else { return nil }
+        return unsafeBitCast(symbol, to: GetCornerRadii.self)
+    }()
+
+    static func systemCornerRadii(_ displayID: CGDirectDisplayID) -> (top: CGFloat, bottom: CGFloat)? {
+        guard let getCornerRadii else { return nil }
+        var bottomA = 0.0, bottomB = 0.0, topA = 0.0, topB = 0.0
+        guard getCornerRadii(displayID, &bottomA, &bottomB, &topA, &topB) == 0 else { return nil }
+        let top = max(topA, topB)
+        guard top > 0, top < 200 else { return nil }
+        return (CGFloat(top), CGFloat(max(bottomA, bottomB)))
     }
 
     enum Corner { case bottomLeft, bottomRight }

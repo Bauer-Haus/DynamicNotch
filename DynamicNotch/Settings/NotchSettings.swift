@@ -20,7 +20,6 @@ struct NotchSettings: View {
     @Default(.notchHeight) var notchHeight
     @Default(.nonNotchHeightMode) var nonNotchHeightMode
     @Default(.nonNotchHeight) var nonNotchHeight
-    @Default(.enableShadow) var enableShadow
     @Default(.roundBottomScreenCorners) var roundBottomScreenCorners
     @Default(.openNotchWidth) var openNotchWidth
 
@@ -117,12 +116,6 @@ struct NotchSettings: View {
                         symbol: "arrow.left.and.right", color: .gray)
                 }
                 .pickerStyle(.segmented)
-                Toggle(isOn: $enableShadow) {
-                    SettingsLabel(
-                        "Shadow",
-                        subtitle: "A soft shadow round the open notch.",
-                        symbol: "shadow", color: .gray)
-                }
                 Toggle(isOn: $roundBottomScreenCorners) {
                     SettingsLabel(
                         "Round bottom screen corners (PROLED XDR)",

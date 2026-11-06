@@ -61,7 +61,6 @@ extension Defaults.Keys {
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
     
     // MARK: Appearance
-    static let enableShadow = Key<Bool>("enableShadow", default: true)
     /// Black rounded corners at the bottom of the screen, matching its top ones.
     static let roundBottomScreenCorners = Key<Bool>("roundBottomScreenCorners", default: true)
     /// Apple's island size, or a wider fixed size to suit the MacBook notch.
@@ -74,7 +73,6 @@ extension Defaults.Keys {
     static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 200.0)
     
     // MARK: Media playback
-    static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
     /// The closed notch's waveform holds still until the pointer is over it, like Apple's
     /// MacBook island. Off: it always follows the music.
     static let closedWaveformStillUntilHovered = Key<Bool>("closedWaveformStillUntilHovered", default: false)
