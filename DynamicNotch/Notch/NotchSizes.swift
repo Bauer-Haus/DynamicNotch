@@ -38,13 +38,13 @@ enum OpenPlayer {
     static func waveformSide(closedHeight: CGFloat) -> CGFloat {
         max(closedHeight - 12, minWaveformSide)
     }
-    /// The progress row: its bar's centre is 19.8 pt below the art.
+    /// The progress row, 10.9 pt below the art.
     static let progressHeight: CGFloat = 16
     static let progressTop: CGFloat = 10.9
     static let timeSize: CGFloat = 10.5
     static let timeToBar: CGFloat = 5.4
-    static let barThickness: CGFloat = 5.3
-    static let barDrop: CGFloat = 3.7
+    /// As tall as the digits beside it (their cap height), and centred on them.
+    static let barThickness: CGFloat = NSFont.systemFont(ofSize: timeSize, weight: .medium).capHeight
     /// The controls' centres are 105.6 pt below the top of the art.
     static let controlsTop: CGFloat = 9.9
     /// Centre to centre: Apple's three controls are 75.3 pt apart. More share the width.

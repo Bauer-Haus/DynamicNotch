@@ -24,7 +24,7 @@ struct MusicSliderView: View {
 
 
     var body: some View {
-        HStack(spacing: OpenPlayer.timeToBar) {
+        HStack(alignment: .firstTextBaseline, spacing: OpenPlayer.timeToBar) {
             Text(timeString(from: sliderValue))
                 .monospacedDigit()
             CustomSlider(
@@ -37,8 +37,12 @@ struct MusicSliderView: View {
                 onValueChange: onValueChange,
                 thickness: OpenPlayer.barThickness
             )
-            // Apple's bar sits a little below the middle of the times.
-            .offset(y: OpenPlayer.barDrop)
+            .frame(height: OpenPlayer.barThickness + 5)
+            // Centre the bar on the digits: its bottom edge on their baseline, so its middle
+            // is half a cap height above it, the same as the digits' middle.
+            .alignmentGuide(.firstTextBaseline) { d in
+                d[VerticalAlignment.center] + OpenPlayer.barThickness / 2
+            }
             // Time left, as on the iPhone (-3:49).
             Text("−" + timeString(from: max(0, duration - sliderValue)))
                 .monospacedDigit()
