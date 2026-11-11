@@ -10,92 +10,22 @@ import SwiftUI
 import AppKit
 import Cocoa
 import Foundation
-import CoreImage
 import CoreGraphics
-import CoreImage.CIFilterBuiltins
 import ImageIO
 
 extension NSImage {
 
-    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
-
-    /// The colour layer behind the visualizer bars, matching the iPhone Dynamic Island: the
-    /// album art shrunk and heavily blurred, so each bar takes the colours of the part of the art
-    /// behind it, then given the iPhone's colour treatment (`islandBarColours`).
-    /// Made once per track off the main thread; the bars only mask it.
-    ///
-    /// Dark colours are lifted to `minimumBarBrightness` so bars never vanish into the black
-    /// notch (a black cover gives light grey bars on the iPhone).
+    /// The colour layer behind the visualizer bars, matching the iPhone Dynamic Island, so each
+    /// bar takes the colour of the part of the cover behind it. Like the iPhone, the cover is
+    /// reduced to a 3 x 3 grid of average colours, blended smoothly across the waveform (slightly
+    /// zoomed in on the cover's middle), and each pixel then gets the iPhone's colouring
+    /// (`IslandBarColour`). Made once per track off the main thread; the bars only mask it.
     func visualizerBackdrop(completion: @escaping (NSImage?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                DispatchQueue.main.async { completion(nil) }
-                return
-            }
-            let side: CGFloat = 32
-            let input = CIImage(cgImage: cgImage)
-            let scale = side / max(input.extent.width, input.extent.height)
-
-            let resize = CIFilter.lanczosScaleTransform()
-            resize.inputImage = input
-            resize.scale = Float(scale)
-            resize.aspectRatio = 1
-
-            let blur = CIFilter.gaussianBlur()
-            // Clamping first keeps the edges from fading to transparent.
-            blur.inputImage = resize.outputImage?.clampedToExtent()
-            blur.radius = 4
-
-
-            let rect = CGRect(x: 0, y: 0, width: side, height: side)
-            let width = Int(side), height = Int(side)
-            var pixels = [UInt8](repeating: 0, count: width * height * 4)
-            let space = CGColorSpaceCreateDeviceRGB()
-            let info = CGImageAlphaInfo.premultipliedLast.rawValue
-            guard let output = blur.outputImage?.cropped(to: rect),
-                  let blurred = Self.ciContext.createCGImage(output, from: rect),
-                  let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
-                                          bytesPerRow: width * 4, space: space, bitmapInfo: info)
-            else {
-                DispatchQueue.main.async { completion(nil) }
-                return
-            }
-            context.draw(blurred, in: rect)
-            Self.islandBarColours(rgba: &pixels)
-            Self.liftToMinimumBrightness(rgba: &pixels, minimum: Self.minimumBarBrightness)
-
-            guard let lifted = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
-                                         bytesPerRow: width * 4, space: space, bitmapInfo: info)?.makeImage()
-            else {
-                DispatchQueue.main.async { completion(nil) }
-                return
-            }
-            let image = NSImage(cgImage: lifted, size: NSSize(width: side, height: side))
+            let image = self.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                .flatMap { IslandBarColour.backdrop(from: $0) }
+                .map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
             DispatchQueue.main.async { completion(image) }
-        }
-    }
-
-    /// How the iPhone colours its bars from the blurred art. It doesn't mute the art: colour is
-    /// kept a little richer (1.2x) and brightness is pulled toward the middle, so dark parts come
-    /// up and light parts go down, and a light area stays visibly tinted instead of turning
-    /// grey-white. Fitted to iPhone screenshots of the same song (within ~7/255 per channel):
-    /// brightness out = 0.68 x brightness in + 0.11 (Rec. 709 luma, on ordinary screen values).
-    static let barSaturation: Double = 1.2
-    static let barBrightnessScale: Double = 0.68
-    static let barBrightnessOffset: Double = 0.11
-
-    /// Applies the iPhone's bar colouring (above) to opaque RGBA pixels, keeping alpha.
-    static func islandBarColours(rgba pixels: inout [UInt8]) {
-        var i = 0
-        while i + 3 < pixels.count {
-            let r = Double(pixels[i]) / 255, g = Double(pixels[i + 1]) / 255, b = Double(pixels[i + 2]) / 255
-            let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
-            let newLuma = barBrightnessScale * luma + barBrightnessOffset
-            for (c, value) in [r, g, b].enumerated() {
-                let out = newLuma + barSaturation * (value - luma)
-                pixels[i + c] = UInt8((min(max(out, 0), 1) * 255).rounded())
-            }
-            i += 4
         }
     }
 
@@ -175,5 +105,142 @@ extension NSImage {
                                      bytesPerRow: width * 4, space: space, bitmapInfo: info)?.makeImage()
         else { return self }
         return NSImage(cgImage: lifted, size: size)
+    }
+}
+
+/// How the iPhone Dynamic Island colours its waveform from the album cover. Fitted to iPhone
+/// screenshots of eight covers (purple, orange, lime, blue, tan, grey, white and black): bars
+/// come out within ~6/255 on average, the worst cover ~11. All colours are Display P3, as the
+/// iPhone draws them.
+///
+/// 1. The cover is averaged into a 3 x 3 grid and blended smoothly across the waveform, zoomed
+///    in 1.17x on the cover (and a touch below its middle).
+/// 2. Colour is made richer: 1.31x away from grey, in linear light, within the sRGB range.
+/// 3. Brightness (luma) becomes 0.047 + 0.90 x the cover's own, scaled down for a bright cover
+///    (whole-cover luma over 0.63), so a white cover gives mid-grey bars and a lime one darker lime.
+/// 4. Nothing goes darker than `NSImage.minimumBarBrightness` (a black cover gives grey bars).
+enum IslandBarColour {
+    static let grid = 3
+    static let zoom = 1.1734
+    static let offsetX = 0.0048
+    static let offsetY = 0.0488
+    static let saturation = 1.3120
+    static let brightnessOffset = 0.0471
+    static let brightnessScale = 0.8992
+    /// Covers brighter than this (whole-cover luma) are dimmed by (this / theirs) ^ exponent.
+    static let brightCover = 0.6279
+    static let brightCoverExponent = 1.8241
+    /// Side of the backdrop image; it is stretched over the waveform.
+    static let side = 32
+
+    // Display P3 <-> sRGB, both linear.
+    private static let p3ToSRGB: [[Double]] = [[1.2249, -0.2247, 0], [-0.0420, 1.0419, 0], [-0.0197, -0.0786, 1.0979]]
+    private static let sRGBToP3: [[Double]] = [[0.82248, 0.17738, 0], [0.03315, 0.96694, 0], [0.01713, 0.07241, 0.91083]]
+    private static let rec709: [Double] = [0.2126, 0.7152, 0.0722]
+
+    static func linear(_ v: Double) -> Double { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+    static func encoded(_ v: Double) -> Double {
+        let c = min(max(v, 0), 1)
+        return c <= 0.0031308 ? c * 12.92 : 1.055 * pow(c, 1 / 2.4) - 0.055
+    }
+    private static func times(_ m: [[Double]], _ v: [Double]) -> [Double] {
+        (0 ..< 3).map { i in m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2] }
+    }
+    private static func luma(linearSRGB v: [Double]) -> Double {
+        zip(rec709, v).reduce(0) { $0 + $1.0 * encoded($1.1) }
+    }
+
+    /// The whole cover's brightness, from its average Display P3 colour (0...1 channels).
+    static func coverLuma(averageP3 p3: [Double]) -> Double {
+        luma(linearSRGB: times(p3ToSRGB, p3.map(linear)))
+    }
+
+    /// One bar colour: a Display P3 colour from the cover (0...1) -> the bar's Display P3 colour.
+    static func colour(p3: [Double], coverLuma: Double) -> [Double] {
+        let source = times(p3ToSRGB, p3.map(linear))                      // linear sRGB
+        let y = zip(rec709, source).reduce(0) { $0 + $1.0 * $1.1 }
+        let richer = source.map { min(max(y + saturation * ($0 - y), 0), 1) }
+        let dim = coverLuma > brightCover ? pow(brightCover / coverLuma, brightCoverExponent) : 1
+        let target = (brightnessOffset + brightnessScale * luma(linearSRGB: source)) * dim
+        // Scale the richer colour until its brightness is the target.
+        var low = 0.0, high = 4.0
+        for _ in 0 ..< 28 {
+            let mid = (low + high) / 2
+            if luma(linearSRGB: richer.map { min($0 * mid, 1) }) < target { low = mid } else { high = mid }
+        }
+        let scale = (low + high) / 2
+        return times(sRGBToP3, richer.map { min($0 * scale, 1) }).map(encoded)
+    }
+
+    /// The backdrop for a cover: `side` x `side`, Display P3.
+    static func backdrop(from art: CGImage) -> CGImage? {
+        guard let p3 = CGColorSpace(name: CGColorSpace.displayP3) else { return nil }
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
+
+        // The cover at 48 px (16 per grid cell), in Display P3, black level raised as shown.
+        let sample = 48, cell = sample / grid
+        var cover = [UInt8](repeating: 0, count: sample * sample * 4)
+        guard let context = CGContext(data: &cover, width: sample, height: sample, bitsPerComponent: 8,
+                                      bytesPerRow: sample * 4, space: p3, bitmapInfo: info) else { return nil }
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: sample, height: sample))
+        context.interpolationQuality = .high
+        context.draw(art, in: CGRect(x: 0, y: 0, width: sample, height: sample))
+        AlbumArtLook.raiseBlackLevel(rgba: &cover)
+
+        func pixel(_ x: Int, _ y: Int) -> [Double] {
+            let i = (y * sample + x) * 4
+            return [Double(cover[i]) / 255, Double(cover[i + 1]) / 255, Double(cover[i + 2]) / 255]
+        }
+        var cells = [[Double]](repeating: [0, 0, 0], count: grid * grid)
+        for gy in 0 ..< grid {
+            for gx in 0 ..< grid {
+                var sum = [0.0, 0.0, 0.0]
+                for y in gy * cell ..< (gy + 1) * cell {
+                    for x in gx * cell ..< (gx + 1) * cell {
+                        let p = pixel(x, y)
+                        for c in 0 ..< 3 { sum[c] += p[c] }
+                    }
+                }
+                cells[gy * grid + gx] = sum.map { $0 / Double(cell * cell) }
+            }
+        }
+        // The whole cover's brightness, leaving out the edges (as measured).
+        let inset = sample / 10
+        var mean = [0.0, 0.0, 0.0]
+        for y in inset ..< sample - inset {
+            for x in inset ..< sample - inset {
+                let p = pixel(x, y)
+                for c in 0 ..< 3 { mean[c] += p[c] }
+            }
+        }
+        let count = Double((sample - 2 * inset) * (sample - 2 * inset))
+        let brightness = coverLuma(averageP3: mean.map { $0 / count })
+
+        // Blend the grid over the waveform and colour each pixel.
+        var out = [UInt8](repeating: 255, count: side * side * 4)
+        let last = Double(grid - 1)
+        for py in 0 ..< side {
+            for px in 0 ..< side {
+                let u = 0.5 + ((Double(px) + 0.5) / Double(side) - 0.5) / zoom + offsetX
+                let v = 0.5 + ((Double(py) + 0.5) / Double(side) - 0.5) / zoom + offsetY
+                let gx = min(max(u * Double(grid) - 0.5, 0), last)
+                let gy = min(max(v * Double(grid) - 0.5, 0), last)
+                let x0 = min(Int(gx), grid - 2), y0 = min(Int(gy), grid - 2)
+                let fx = gx - Double(x0), fy = gy - Double(y0)
+                var source = [0.0, 0.0, 0.0]
+                for c in 0 ..< 3 {
+                    let top = cells[y0 * grid + x0][c] * (1 - fx) + cells[y0 * grid + x0 + 1][c] * fx
+                    let bottom = cells[(y0 + 1) * grid + x0][c] * (1 - fx) + cells[(y0 + 1) * grid + x0 + 1][c] * fx
+                    source[c] = top * (1 - fy) + bottom * fy
+                }
+                let bar = colour(p3: source, coverLuma: brightness)
+                let i = (py * side + px) * 4
+                for c in 0 ..< 3 { out[i + c] = UInt8((bar[c] * 255).rounded()) }
+            }
+        }
+        NSImage.liftToMinimumBrightness(rgba: &out, minimum: NSImage.minimumBarBrightness)
+        return CGContext(data: &out, width: side, height: side, bitsPerComponent: 8,
+                         bytesPerRow: side * 4, space: p3, bitmapInfo: info)?.makeImage()
     }
 }

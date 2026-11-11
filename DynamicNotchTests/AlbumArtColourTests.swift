@@ -27,13 +27,12 @@ struct AlbumArtColourTests {
         }
     }
 
-    /// The centre pixel of the backdrop as 0...255 RGB.
+    /// The centre pixel of the backdrop as stored (Display P3, 0...255).
     private func centre(of image: NSImage) throws -> (r: Int, g: Int, b: Int) {
         let cg = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
-        let rep = NSBitmapImageRep(cgImage: cg)
-        let colour = try #require(rep.colorAt(x: cg.width / 2, y: cg.height / 2)?.usingColorSpace(.deviceRGB))
-        return (Int((colour.redComponent * 255).rounded()), Int((colour.greenComponent * 255).rounded()),
-                Int((colour.blueComponent * 255).rounded()))
+        let data = try #require(cg.dataProvider?.data) as Data
+        let i = (cg.height / 2) * cg.bytesPerRow + (cg.width / 2) * cg.bitsPerPixel / 8
+        return (Int(data[i]), Int(data[i + 1]), Int(data[i + 2]))
     }
 
     // MARK: Brightness floor
@@ -65,33 +64,47 @@ struct AlbumArtColourTests {
 
     // MARK: The iPhone's colouring
 
-    /// One pixel through the bar colouring.
-    private func barColour(_ r: UInt8, _ g: UInt8, _ b: UInt8) -> [UInt8] {
-        var p: [UInt8] = [r, g, b, 255]
-        NSImage.islandBarColours(rgba: &p)
-        return p
+    /// One colour through the bar colouring, on a cover whose average colour is `cover`.
+    private func barColour(_ colour: [Double], cover: [Double]) -> [Int] {
+        let luma = IslandBarColour.coverLuma(averageP3: cover.map { $0 / 255 })
+        return IslandBarColour.colour(p3: colour.map { $0 / 255 }, coverLuma: luma).map { Int(($0 * 255).rounded()) }
     }
 
-    /// Measured on "Omg" (Raymond v Raymond): the blurred cover's colour and the iPhone's bar
-    /// in front of it. Within 16/255 a channel: the fit is ~7 on average, JPEG noise included.
+    /// The same colours through the fitted model the numbers came from (Display P3, 0...255),
+    /// so the app's arithmetic matches what was fitted to the iPhone screenshots.
     @Test(arguments: [
-        ([52, 48, 90], [63, 58, 112]),     // dark purple: lighter, as rich
-        ([73, 65, 116], [80, 69, 130]),
-        ([140, 122, 163], [130, 111, 165]),
-        ([178, 165, 194], [145, 129, 177]), // pale lavender: darker and still purple, not grey
-    ] as [([UInt8], [UInt8])])
-    func matchesTheIPhoneOnOmg(art: [UInt8], iPhone: [UInt8]) {
-        let out = barColour(art[0], art[1], art[2])
+        ([137, 204, 4], [137, 204, 4], [101, 182, 53]),         // brat: darker lime
+        ([250, 250, 250], [230, 230, 228], [122, 122, 122]),    // white on a white cover: mid-grey
+        ([190, 120, 40], [110, 70, 40], [206, 116, 42]),        // orange on a dark cover: richer
+        ([70, 140, 180], [90, 140, 170], [66, 148, 198]),       // sky blue: richer
+        ([140, 120, 160], [100, 90, 130], [143, 117, 168]),     // lavender: stays purple
+    ] as [([Double], [Double], [Int])])
+    func matchesTheFittedModel(colour: [Double], cover: [Double], expected: [Int]) {
+        let out = barColour(colour, cover: cover)
         for c in 0 ..< 3 {
-            #expect(abs(Int(out[c]) - Int(iPhone[c])) <= 16, "\(art) -> \(Array(out[0 ..< 3])), iPhone \(iPhone)")
+            #expect(abs(out[c] - expected[c]) <= 1, "\(colour) -> \(out), expected \(expected)")
         }
     }
 
-    @Test func lightAreasStayTinted() {
-        // Pale lavender comes out with more colour (blue well above green), not grey-white.
-        let out = barColour(178, 165, 194)
-        #expect(Int(out[2]) - Int(out[1]) > Int(194) - Int(165))
-        #expect(out[3] == 255)
+    @Test func brightCoversAreDimmed() {
+        // The same white, on a white cover and on a mid-grey one: a bright cover is held down.
+        let onWhite = barColour([250, 250, 250], cover: [245, 245, 245])
+        let onGrey = barColour([250, 250, 250], cover: [128, 128, 128])
+        #expect(onWhite[0] < onGrey[0] - 20, "\(onWhite) vs \(onGrey)")
+        #expect(onWhite[0] == onWhite[1] && onWhite[1] == onWhite[2], "stays neutral")
+    }
+
+    @Test func whiteCoverGivesMidGreyBars() async throws {
+        let image = await backdrop(of: cover(1, 1, 1))
+        let pixel = try centre(of: try #require(image))
+        // The iPhone shows ~123-147 on the White Album; an all-white cover is dimmed a bit more.
+        #expect((100 ... 150).contains(pixel.r) && abs(pixel.r - pixel.b) <= 3, "\(pixel)")
+    }
+
+    @Test func limeCoverStaysLime() async throws {
+        let image = await backdrop(of: cover(0.54, 0.8, 0.02))
+        let pixel = try centre(of: try #require(image))
+        #expect(pixel.g > pixel.r + 30 && pixel.r > pixel.b, "darker lime: \(pixel)")
     }
 
     // MARK: Black level of the cover itself
