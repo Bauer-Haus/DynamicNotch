@@ -124,12 +124,16 @@ enum IslandBarColour {
     static let zoom = 1.1734
     static let offsetX = 0.0048
     static let offsetY = 0.0488
-    static let saturation = 1.3120
-    static let brightnessOffset = 0.0471
-    static let brightnessScale = 0.8992
+    static let saturation = 1.2320
+    static let brightnessOffset = 0.0424
+    static let brightnessScale = 0.9317
     /// Covers brighter than this (whole-cover luma) are dimmed by (this / theirs) ^ exponent.
-    static let brightCover = 0.6279
-    static let brightCoverExponent = 1.8241
+    static let brightCover = 0.6152
+    static let brightCoverExponent = 1.7740
+    /// Dimming stops here (the White Album): an all-white cover gives light grey bars, not darker ones.
+    static let brightestCover = 0.7913
+    /// Colourful pixels count more in each grid cell's average: weight = e ^ (this x saturation).
+    static let colourfulWeight = 0.8737
     /// Side of the backdrop image; it is stretched over the waveform.
     static let side = 32
 
@@ -160,7 +164,7 @@ enum IslandBarColour {
         let source = times(p3ToSRGB, p3.map(linear))                      // linear sRGB
         let y = zip(rec709, source).reduce(0) { $0 + $1.0 * $1.1 }
         let richer = source.map { min(max(y + saturation * ($0 - y), 0), 1) }
-        let dim = coverLuma > brightCover ? pow(brightCover / coverLuma, brightCoverExponent) : 1
+        let dim = coverLuma > brightCover ? pow(brightCover / min(coverLuma, brightestCover), brightCoverExponent) : 1
         let target = (brightnessOffset + brightnessScale * luma(linearSRGB: source)) * dim
         // Scale the richer colour until its brightness is the target.
         var low = 0.0, high = 4.0
@@ -195,14 +199,17 @@ enum IslandBarColour {
         var cells = [[Double]](repeating: [0, 0, 0], count: grid * grid)
         for gy in 0 ..< grid {
             for gx in 0 ..< grid {
-                var sum = [0.0, 0.0, 0.0]
+                var sum = [0.0, 0.0, 0.0], weights = 0.0
                 for y in gy * cell ..< (gy + 1) * cell {
                     for x in gx * cell ..< (gx + 1) * cell {
                         let p = pixel(x, y)
-                        for c in 0 ..< 3 { sum[c] += p[c] }
+                        let high = p.max()!, low = p.min()!
+                        let w = exp(colourfulWeight * (high - low) / max(high, 0.05))
+                        for c in 0 ..< 3 { sum[c] += p[c] * w }
+                        weights += w
                     }
                 }
-                cells[gy * grid + gx] = sum.map { $0 / Double(cell * cell) }
+                cells[gy * grid + gx] = sum.map { $0 / weights }
             }
         }
         // The whole cover's brightness, leaving out the edges (as measured).

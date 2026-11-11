@@ -73,11 +73,12 @@ struct AlbumArtColourTests {
     /// The same colours through the fitted model the numbers came from (Display P3, 0...255),
     /// so the app's arithmetic matches what was fitted to the iPhone screenshots.
     @Test(arguments: [
-        ([137, 204, 4], [137, 204, 4], [101, 182, 53]),         // brat: darker lime
-        ([250, 250, 250], [230, 230, 228], [122, 122, 122]),    // white on a white cover: mid-grey
-        ([190, 120, 40], [110, 70, 40], [206, 116, 42]),        // orange on a dark cover: richer
-        ([70, 140, 180], [90, 140, 170], [66, 148, 198]),       // sky blue: richer
-        ([140, 120, 160], [100, 90, 130], [143, 117, 168]),     // lavender: stays purple
+        ([137, 204, 4], [137, 204, 4], [105, 179, 52]),         // brat: darker lime
+        ([250, 250, 250], [230, 230, 228], [156, 156, 156]),    // white on a white cover: light grey
+        ([190, 120, 40], [110, 70, 40], [206, 119, 43]),        // orange on a dark cover: richer
+        ([70, 140, 180], [90, 140, 170], [67, 151, 201]),       // sky blue: richer
+        ([140, 120, 160], [100, 90, 130], [145, 120, 170]),     // lavender: stays purple
+        ([255, 255, 255], [255, 255, 255], [159, 159, 159]),    // all-white cover: like the iPhone's White Album
     ] as [([Double], [Double], [Int])])
     func matchesTheFittedModel(colour: [Double], cover: [Double], expected: [Int]) {
         let out = barColour(colour, cover: cover)
@@ -87,8 +88,8 @@ struct AlbumArtColourTests {
     }
 
     @Test func brightCoversAreDimmed() {
-        // The same white, on a white cover and on a mid-grey one: a bright cover is held down.
-        let onWhite = barColour([250, 250, 250], cover: [245, 245, 245])
+        // The same white, on a bright cover and on a mid-grey one: a bright cover is held down.
+        let onWhite = barColour([250, 250, 250], cover: [215, 215, 215])
         let onGrey = barColour([250, 250, 250], cover: [128, 128, 128])
         #expect(onWhite[0] < onGrey[0] - 20, "\(onWhite) vs \(onGrey)")
         #expect(onWhite[0] == onWhite[1] && onWhite[1] == onWhite[2], "stays neutral")
@@ -97,8 +98,22 @@ struct AlbumArtColourTests {
     @Test func whiteCoverGivesMidGreyBars() async throws {
         let image = await backdrop(of: cover(1, 1, 1))
         let pixel = try centre(of: try #require(image))
-        // The iPhone shows ~123-147 on the White Album; an all-white cover is dimmed a bit more.
-        #expect((100 ... 150).contains(pixel.r) && abs(pixel.r - pixel.b) <= 3, "\(pixel)")
+        // The iPhone shows light grey bars for the all-white White Album.
+        #expect((145 ... 170).contains(pixel.r) && abs(pixel.r - pixel.b) <= 3, "\(pixel)")
+    }
+
+    @Test func colourfulPixelsCountMore() async throws {
+        // Half grey, half blue: the bars lean blue, like the iPhone on Weezer's sky behind the band.
+        let image = NSImage(size: NSSize(width: 300, height: 300))
+        image.lockFocus()
+        NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: 300, height: 300).fill()
+        NSColor(srgbRed: 0.2, green: 0.4, blue: 0.9, alpha: 1).setFill()
+        for x in stride(from: 0, to: 300, by: 100) { NSRect(x: CGFloat(x), y: 0, width: 50, height: 300).fill() }
+        image.unlockFocus()
+        let pixel = try centre(of: try #require(await backdrop(of: image)))
+        let plain = try centre(of: try #require(await backdrop(of: cover(0.35, 0.45, 0.7))))
+        #expect(pixel.b - pixel.r > plain.b - plain.r + 5, "\(pixel) vs plain average \(plain)")
     }
 
     @Test func limeCoverStaysLime() async throws {
