@@ -63,6 +63,37 @@ struct AlbumArtColourTests {
         #expect(pixels[3] == 255 && pixels[7] == 255)        // alpha untouched
     }
 
+    // MARK: The iPhone's colouring
+
+    /// One pixel through the bar colouring.
+    private func barColour(_ r: UInt8, _ g: UInt8, _ b: UInt8) -> [UInt8] {
+        var p: [UInt8] = [r, g, b, 255]
+        NSImage.islandBarColours(rgba: &p)
+        return p
+    }
+
+    /// Measured on "Omg" (Raymond v Raymond): the blurred cover's colour and the iPhone's bar
+    /// in front of it. Within 16/255 a channel: the fit is ~7 on average, JPEG noise included.
+    @Test(arguments: [
+        ([52, 48, 90], [63, 58, 112]),     // dark purple: lighter, as rich
+        ([73, 65, 116], [80, 69, 130]),
+        ([140, 122, 163], [130, 111, 165]),
+        ([178, 165, 194], [145, 129, 177]), // pale lavender: darker and still purple, not grey
+    ] as [([UInt8], [UInt8])])
+    func matchesTheIPhoneOnOmg(art: [UInt8], iPhone: [UInt8]) {
+        let out = barColour(art[0], art[1], art[2])
+        for c in 0 ..< 3 {
+            #expect(abs(Int(out[c]) - Int(iPhone[c])) <= 16, "\(art) -> \(Array(out[0 ..< 3])), iPhone \(iPhone)")
+        }
+    }
+
+    @Test func lightAreasStayTinted() {
+        // Pale lavender comes out with more colour (blue well above green), not grey-white.
+        let out = barColour(178, 165, 194)
+        #expect(Int(out[2]) - Int(out[1]) > Int(194) - Int(165))
+        #expect(out[3] == 255)
+    }
+
     // MARK: Black level of the cover itself
 
     /// One pixel through the black-level lift.

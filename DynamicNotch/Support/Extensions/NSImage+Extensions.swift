@@ -20,8 +20,8 @@ extension NSImage {
     private static let ciContext = CIContext(options: [.cacheIntermediates: false])
 
     /// The colour layer behind the visualizer bars, matching the iPhone Dynamic Island: the
-    /// album art shrunk, heavily blurred, a little less saturated and darker, so each bar takes the
-    /// colours of the part of the art behind it (measured: hue kept, saturation ~0.75x, brightness ~0.85x).
+    /// album art shrunk and heavily blurred, so each bar takes the colours of the part of the art
+    /// behind it, then given the iPhone's colour treatment (`islandBarColours`).
     /// Made once per track off the main thread; the bars only mask it.
     ///
     /// Dark colours are lifted to `minimumBarBrightness` so bars never vanish into the black
@@ -46,21 +46,13 @@ extension NSImage {
             blur.inputImage = resize.outputImage?.clampedToExtent()
             blur.radius = 4
 
-            let colour = CIFilter.colorControls()
-            colour.inputImage = blur.outputImage
-            colour.saturation = 0.75
-
-            // The iPhone's bars sit ~15% darker than the blurred art (measured on the same song).
-            let exposure = CIFilter.exposureAdjust()
-            exposure.inputImage = colour.outputImage
-            exposure.ev = -0.5  // in linear light; about 0.85x on screen
 
             let rect = CGRect(x: 0, y: 0, width: side, height: side)
             let width = Int(side), height = Int(side)
             var pixels = [UInt8](repeating: 0, count: width * height * 4)
             let space = CGColorSpaceCreateDeviceRGB()
             let info = CGImageAlphaInfo.premultipliedLast.rawValue
-            guard let output = exposure.outputImage?.cropped(to: rect),
+            guard let output = blur.outputImage?.cropped(to: rect),
                   let blurred = Self.ciContext.createCGImage(output, from: rect),
                   let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
                                           bytesPerRow: width * 4, space: space, bitmapInfo: info)
@@ -69,6 +61,7 @@ extension NSImage {
                 return
             }
             context.draw(blurred, in: rect)
+            Self.islandBarColours(rgba: &pixels)
             Self.liftToMinimumBrightness(rgba: &pixels, minimum: Self.minimumBarBrightness)
 
             guard let lifted = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
@@ -79,6 +72,30 @@ extension NSImage {
             }
             let image = NSImage(cgImage: lifted, size: NSSize(width: side, height: side))
             DispatchQueue.main.async { completion(image) }
+        }
+    }
+
+    /// How the iPhone colours its bars from the blurred art. It doesn't mute the art: colour is
+    /// kept a little richer (1.2x) and brightness is pulled toward the middle, so dark parts come
+    /// up and light parts go down, and a light area stays visibly tinted instead of turning
+    /// grey-white. Fitted to iPhone screenshots of the same song (within ~7/255 per channel):
+    /// brightness out = 0.68 x brightness in + 0.11 (Rec. 709 luma, on ordinary screen values).
+    static let barSaturation: Double = 1.2
+    static let barBrightnessScale: Double = 0.68
+    static let barBrightnessOffset: Double = 0.11
+
+    /// Applies the iPhone's bar colouring (above) to opaque RGBA pixels, keeping alpha.
+    static func islandBarColours(rgba pixels: inout [UInt8]) {
+        var i = 0
+        while i + 3 < pixels.count {
+            let r = Double(pixels[i]) / 255, g = Double(pixels[i + 1]) / 255, b = Double(pixels[i + 2]) / 255
+            let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            let newLuma = barBrightnessScale * luma + barBrightnessOffset
+            for (c, value) in [r, g, b].enumerated() {
+                let out = newLuma + barSaturation * (value - luma)
+                pixels[i + c] = UInt8((min(max(out, 0), 1) * 255).rounded())
+            }
+            i += 4
         }
     }
 
