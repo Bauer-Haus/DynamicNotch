@@ -53,6 +53,16 @@ struct SpeakerLevels {
     var surroundRight: Float = 0
     /// The .1: the lows.
     var sub: Float = 0
+    /// Hits (a sharp rise: a drum, a pluck, a consonant), per speaker in `Speaker` order:
+    /// each is bumped on a hit, with that hit's size 0...1.
+    var hitCount = SIMD16<Int32>(repeating: 0)
+    var hitStrength = SIMD16<Float>(repeating: 0)
+
+    /// Indices into `hitCount` / `hitStrength`.
+    enum Speaker {
+        static let left = 0, right = 1, leftMain = 2, rightMain = 3, frontLeft = 4, frontRight = 5
+        static let centre = 6, surroundLeft = 7, surroundRight = 8, sub = 9
+    }
 }
 
 /// Turns stereo samples into `VisualizerFrame`s. Unlike `SpectrumAnalyzer` (which copies the
@@ -77,6 +87,15 @@ final class VisualizerAnalyzer {
     static let minBeatGap: Double = 0.22
     /// Speaker levels cover this many dB below the recent loudest speaker.
     static let speakerRangeDB: Float = 30
+    /// The quietest a speaker has been recently is the bottom of its pulse, so a loud master
+    /// that only varies by 6-8 dB still swings from dim to bright. It creeps up this fast
+    /// (dB/s) while the music stays loud, and the range never shrinks below `minRangeDB`.
+    static let floorRiseDBPerSecond: Float = 10
+    static let minRangeDB: Float = 9
+    /// A hit: the level rising this much within ~21 ms (two analyses)...
+    static let hitRise: Float = 0.18
+    /// ...at least this many analyses (~75 ms) after the last one.
+    static let hitGap = 7
     /// Crossover points: the sub plays below `subUpToHz`, the 5.1 fronts up to `midsUpToHz`
     /// and the centre above it.
     static let subUpToHz: Float = 120
@@ -107,6 +126,11 @@ final class VisualizerAnalyzer {
     private var magnitude = [Float](repeating: 0, count: fftSize / 2)
     private var trackPeakDB: Float = -60
     private var groupPeakDB = [Float](repeating: -60, count: 6)
+    private var groupFloorDB = [Float](repeating: -90, count: 6)
+    private var speakerLevel = [Float](repeating: 0, count: 10)
+    private var levelOneAgo = [Float](repeating: 0, count: 10)
+    private var levelTwoAgo = [Float](repeating: 0, count: 10)
+    private var lastHit = [Int](repeating: -1000, count: 10)
     private var speakerDB = [Float](repeating: -120, count: 10)
 
     /// Fractional FFT bin of each band's lower edge, centre and upper edge.
@@ -318,22 +342,40 @@ final class VisualizerAnalyzer {
 
         let fall = Self.peakFallDBPerSecond * Float(Self.hopSize) / Float(sampleRate)
         trackPeakDB = max(speakerDB[0], speakerDB[1], trackPeakDB - fall, -60)
+        let floorRise = Self.floorRiseDBPerSecond * Float(Self.hopSize) / Float(sampleRate)
         for (g, (i, j)) in Self.speakerGroups.enumerated() {
-            groupPeakDB[g] = max(speakerDB[i], speakerDB[j], groupPeakDB[g] - fall,
-                                 trackPeakDB - Self.speakerBoostDB[g])
+            let peak = max(speakerDB[i], speakerDB[j], groupPeakDB[g] - fall, trackPeakDB - Self.speakerBoostDB[g])
+            groupPeakDB[g] = peak
+            // Down at once to a new quiet, slowly back up while it stays loud.
+            let quietest = min(speakerDB[i], speakerDB[j])
+            let floor = quietest < groupFloorDB[g] ? quietest : groupFloorDB[g] + floorRise
+            groupFloorDB[g] = max(peak - Self.speakerRangeDB, min(peak - Self.minRangeDB, floor))
+            let bottom = groupFloorDB[g]
+            for k in i ... j {
+                let x = max(0, min(1, (speakerDB[k] - bottom) / (peak - bottom)))
+                speakerLevel[k] = x * x * (1.5 - 0.5 * x)
+            }
         }
-        func level(_ index: Int, group: Int) -> Float {
-            let peak = groupPeakDB[group]
-            let x = max(0, min(1, (speakerDB[index] - (peak - Self.speakerRangeDB)) / Self.speakerRangeDB))
-            return x * x * (1.5 - 0.5 * x)
+        var speakers = SpeakerLevels(
+            left: speakerLevel[0], right: speakerLevel[1],
+            leftMain: speakerLevel[2], rightMain: speakerLevel[3],
+            frontLeft: speakerLevel[4], frontRight: speakerLevel[5],
+            centre: speakerLevel[6],
+            surroundLeft: speakerLevel[7], surroundRight: speakerLevel[8],
+            sub: speakerLevel[9])
+        speakers.hitCount = frame.speakers.hitCount
+        speakers.hitStrength = frame.speakers.hitStrength
+        for k in 0 ..< 10 {
+            let rise = speakerLevel[k] - levelTwoAgo[k]
+            if rise > Self.hitRise, speakerLevel[k] > 0.3, analyses - lastHit[k] >= Self.hitGap {
+                lastHit[k] = analyses
+                speakers.hitCount[k] &+= 1
+                speakers.hitStrength[k] = min(1, 0.3 + 1.6 * rise)
+            }
+            levelTwoAgo[k] = levelOneAgo[k]
+            levelOneAgo[k] = speakerLevel[k]
         }
-        frame.speakers = SpeakerLevels(
-            left: level(0, group: 0), right: level(1, group: 0),
-            leftMain: level(2, group: 1), rightMain: level(3, group: 1),
-            frontLeft: level(4, group: 2), frontRight: level(5, group: 2),
-            centre: level(6, group: 3),
-            surroundLeft: level(7, group: 4), surroundRight: level(8, group: 4),
-            sub: level(9, group: 5))
+        frame.speakers = speakers
     }
 
     private func detectBeat(flux: Float) {

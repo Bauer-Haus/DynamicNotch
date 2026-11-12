@@ -38,6 +38,7 @@ struct VizUniforms {
     float4 speakerLevel[2];       // L, R, C, sub | SL, SR, left channel, right channel
     float4 speakerRingAge[3];     // two rings per speaker, in speaker order
     float4 speakerRingStrength[3];
+    float4 speakerPunch[2];       // a flash on each hit, same order as speakerLevel
 };
 
 static float hash21(float2 p) {
@@ -157,7 +158,8 @@ static float3 speakers(constant VizUniforms &u, float2 p, float aspect) {
     float3 c = float3(0);
     for (int i = 0; i < 6; i++) {
         if (!speakerUsed(layout, i)) continue;
-        float level = speakerLevel(u, i);
+        float punch = u.speakerPunch[i >> 2][i & 3];
+        float level = min(1.0, speakerLevel(u, i) + 0.45 * punch);
         float2 pos = speakerPosition(layout, i, aspect);
         float d = length(p - pos);
         float3 col = (i == 4 || i == 5) ? u.colors[2].rgb : u.colors[1].rgb;
@@ -167,27 +169,27 @@ static float3 speakers(constant VizUniforms &u, float2 p, float aspect) {
             // The sub: a glow that swells out from behind the cover, and wide slow rings.
             float edge = u.art.x * u.art.y;
             float sd = max(roundedBox(p, float2(edge), edge * 0.06), 0.0);
-            c += col * exp(-sd / (0.03 + 0.12 * level)) * (0.1 + 1.1 * level);
+            c += col * exp(-sd / (0.03 + 0.12 * level)) * (0.1 + 1.1 * level + 0.6 * punch);
             for (int j = 0; j < 2; j++) {
                 int r = 2 * i + j;
                 float age = u.speakerRingAge[r >> 2][r & 3];
                 float strength = u.speakerRingStrength[r >> 2][r & 3];
-                float ring = exp(-pow((sd - age * 0.42) * 26.0, 2.0));
-                c += col * ring * strength * exp(-age * 2.0) * 0.9;
+                float ring = exp(-pow((sd - age * 0.85) * 24.0, 2.0));
+                c += col * ring * strength * exp(-age * 4.0) * 1.0;
             }
             continue;
         }
 
         float core = 0.012 + 0.03 * level;
         c += col * exp(-d / (0.035 + 0.09 * level)) * (0.06 + 0.9 * level);
-        c += hot * smoothstep(core, core * 0.55, d) * (0.3 + 0.7 * level);
+        c += hot * smoothstep(core, core * 0.55, d) * (0.3 + 0.7 * level + 0.8 * punch);
         c += col * exp(-pow((d - 0.05) * 140.0, 2.0)) * 0.12;
         for (int j = 0; j < 2; j++) {
             int r = 2 * i + j;
             float age = u.speakerRingAge[r >> 2][r & 3];
             float strength = u.speakerRingStrength[r >> 2][r & 3];
-            float ring = exp(-pow((d - core - age * 0.5) * 60.0, 2.0));
-            c += hot * ring * strength * exp(-age * 2.6) * 0.8;
+            float ring = exp(-pow((d - core - age * 1.0) * 55.0, 2.0));
+            c += hot * ring * strength * exp(-age * 5.0) * 0.9;
         }
     }
     return c * fade;

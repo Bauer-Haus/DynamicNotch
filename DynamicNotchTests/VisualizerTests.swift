@@ -147,6 +147,41 @@ struct VisualizerTests {
         }
     }
 
+    /// Every speaker level from a run, one per analysis.
+    private func speakerTrace(seconds: Double, _ signal: (Double) -> (Float, Float)) throws -> [SpeakerLevels] {
+        let analyzer = try #require(VisualizerAnalyzer(sampleRate: Self.sampleRate))
+        let chunk = 512
+        var left = [Float](repeating: 0, count: chunk), right = left
+        var trace: [SpeakerLevels] = []
+        var n = 0
+        while Double(n) < seconds * Self.sampleRate {
+            for i in 0 ..< chunk { (left[i], right[i]) = signal(Double(n + i) / Self.sampleRate) }
+            n += chunk
+            let produced = left.withUnsafeBufferPointer { l in right.withUnsafeBufferPointer { r in analyzer.push(left: l, right: r) } }
+            if produced { trace.append(analyzer.frame.speakers) }
+        }
+        return trace
+    }
+
+    @Test func subHitsOnEveryKick() throws {
+        let kick = Self.kickTrack(gain: 0.7)
+        let trace = try speakerTrace(seconds: 8) { t in let v = kick(t); return (v, v) }
+        let hits = Int(trace.last!.hitCount[SpeakerLevels.Speaker.sub])
+        // 16 kicks at 120 BPM.
+        #expect(hits >= 14 && hits <= 17, "\(hits) hits")
+    }
+
+    /// A loud master that only moves 6 dB (a pumping 1 kHz tone) still swings the pulse.
+    @Test func loudMasterStillSwings() throws {
+        let trace = try speakerTrace(seconds: 6) { t in
+            let gain = Float(pow(10, (-3 * (1 + sin(2 * .pi * 2 * t))) / 20)) // 0 to -6 dB, twice a second
+            let v = Self.tone(1000, t, 0.5 * gain)
+            return (v, v)
+        }
+        let late = trace.suffix(150).map(\.frontLeft)
+        #expect(late.max()! - late.min()! > 0.6, "swing \(late.max()! - late.min()!)")
+    }
+
     @Test func silenceLightsNoSpeaker() throws {
         let s = try speakers { _ in (0, 0) }
         #expect([s.left, s.right, s.centre, s.sub, s.surroundLeft, s.surroundRight].allSatisfy { $0 == 0 })
@@ -224,6 +259,42 @@ struct VisualizerTests {
         ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
         ctx.setFillColor(CGColor(srgbRed: 0.85, green: 0.68, blue: 0.35, alpha: 1))
         ctx.fill(CGRect(x: 8, y: 26, width: 48, height: 12))
+    }
+
+    /// A yellow cover however it's stored: CMYK (print artwork), BGRA (little-endian) or RGBA.
+    private static func yellowCover(_ storage: String) -> CGImage {
+        let side = 64
+        let ctx: CGContext
+        switch storage {
+        case "CMYK":
+            ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceCMYK(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+            ctx.setFillColor(CGColor(genericCMYKCyan: 0, magenta: 0.1, yellow: 1, black: 0, alpha: 1))
+        case "BGRA":
+            ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+            ctx.setFillColor(CGColor(srgbRed: 0.95, green: 0.85, blue: 0.1, alpha: 1))
+        default:
+            ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            ctx.setFillColor(CGColor(srgbRed: 0.95, green: 0.85, blue: 0.1, alpha: 1))
+        }
+        ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        return ctx.makeImage()!
+    }
+
+    /// The cover in the middle of the screen keeps its real colours.
+    @Test(arguments: ["CMYK", "BGRA", "RGBA"])
+    func coverKeepsItsColours(_ storage: String) throws {
+        let renderer = try #require(VisualizerRenderer(device: MTLCreateSystemDefaultDevice()))
+        renderer.speakerLayout = .off
+        let image = try #require(renderer.renderOffscreen(width: 400, height: 300, seconds: 1.5,
+                                                          artwork: Self.yellowCover(storage)) { _, _ in })
+        let centre = try #require(NSBitmapImageRep(cgImage: image).colorAt(x: 200, y: 150)?.usingColorSpace(.sRGB))
+        #expect(centre.redComponent > 0.75 && centre.greenComponent > 0.6, "\(storage): \(centre)")
+        #expect(centre.blueComponent < 0.35, "\(storage): \(centre)")
     }
 
     /// A stereo mix: the kick in the middle, a hi-hat-like burst on the left, a vocal-like

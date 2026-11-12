@@ -25,6 +25,17 @@ enum SpeakerLayout: Int, CaseIterable, Identifiable {
         }
     }
 
+    /// For each of the shader's slots, the analyzer's speaker (`SpeakerLevels.Speaker`), or -1.
+    var sources: [Int] {
+        typealias S = SpeakerLevels.Speaker
+        switch self {
+        case .off: return [-1, -1, -1, -1, -1, -1]
+        case .stereo: return [S.left, S.right, -1, -1, -1, -1]
+        case .twoOne: return [S.leftMain, S.rightMain, -1, S.sub, -1, -1]
+        case .fiveOne: return [S.frontLeft, S.frontRight, S.centre, S.sub, S.surroundLeft, S.surroundRight]
+        }
+    }
+
     /// Levels in the shader's slot order: left, right, centre, sub, surround left, surround right.
     func slots(_ s: SpeakerLevels) -> [Float] {
         switch self {
@@ -64,7 +75,7 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     // Layout of the uniform buffer (VizUniforms in VisualizerShader), in float4s.
     private enum Slot {
         static let frame = 0, energy = 1, beat = 2, art = 3, colours = 4, rippleAge = 9, rippleStrength = 10
-        static let speakerLevel = 11, speakerRingAge = 13, speakerRingStrength = 16, count = 19
+        static let speakerLevel = 11, speakerRingAge = 13, speakerRingStrength = 16, speakerPunch = 19, count = 21
     }
 
     /// The cover's half-size as a fraction of the screen height.
@@ -104,8 +115,9 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     // Speaker pulses: smoothed level, a slower average to spot hits against, and two rings
     // per speaker that travel out on each hit.
     private var speakerLevel = [Float](repeating: 0, count: 6)
-    private var speakerAverage = [Float](repeating: 0, count: 6)
-    private var speakerLastHit = [CFTimeInterval](repeating: 0, count: 6)
+    /// A flash on each hit that dies away in ~70 ms, so the pulse kicks with the drums.
+    private var speakerPunch = [Float](repeating: 0, count: 6)
+    private var lastHitCount: SIMD16<Int32>?
     private var speakerRingAge = [Float](repeating: 10, count: 12)
     private var speakerRingStrength = [Float](repeating: 0, count: 12)
     private var speakerNextRing = [Int](repeating: 0, count: 6)
@@ -179,18 +191,36 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
             let palette = ArtPalette.make(from: cg)
-            let texture = try? loader.newTexture(cgImage: cg, options: [
-                .SRGB: false,
-                .generateMipmaps: true,
-                .textureUsage: MTLTextureUsage.shaderRead.rawValue,
-                .textureStorageMode: MTLStorageMode.private.rawValue,
-            ])
+            let texture = Self.coverTexture(cg, loader: loader)
             DispatchQueue.main.async {
                 guard let self, version == self.artVersion else { return }
                 if let texture { self.artTexture = texture }
                 self.setPalette(palette, immediately: false)
             }
         }
+    }
+
+    /// The cover as a texture. It's first redrawn into plain 8-bit sRGB RGBA: Metal's loader
+    /// takes an image's bytes as they are, so covers stored another way (CMYK, as print
+    /// artwork often is, or with the channels in another order) came out in the wrong colours,
+    /// a yellow cover showing blue. Redrawing converts them like every other view does.
+    static func coverTexture(_ image: CGImage, loader: MTKTextureLoader, maxSide: Int = 1024) -> MTLTexture? {
+        let scale = min(1, Double(maxSide) / Double(max(image.width, image.height)))
+        let width = max(1, Int((Double(image.width) * scale).rounded()))
+        let height = max(1, Int((Double(image.height) * scale).rounded()))
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let rgba = ctx.makeImage() else { return nil }
+        return try? loader.newTexture(cgImage: rgba, options: [
+            .SRGB: false,
+            .generateMipmaps: true,
+            .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
+            .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
+        ])
     }
 
     private func setPalette(_ palette: ArtPalette, immediately: Bool) {
@@ -237,7 +267,7 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     func renderOffscreen(width: Int, height: Int, seconds: Double, artwork: CGImage? = nil,
                          audio: (_ time: Double, _ frame: inout VisualizerFrame) -> Void) -> CGImage? {
         if let artwork {
-            if let texture = try? textureLoader.newTexture(cgImage: artwork, options: [.SRGB: false, .generateMipmaps: true]) {
+            if let texture = Self.coverTexture(artwork, loader: textureLoader) {
                 artTexture = texture
             }
             setPalette(ArtPalette.make(from: artwork), immediately: true)
@@ -330,6 +360,8 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         uniforms[Slot.rippleStrength] = rippleStrength
         uniforms[Slot.speakerLevel] = SIMD4(speakerLevel[0], speakerLevel[1], speakerLevel[2], speakerLevel[3])
         uniforms[Slot.speakerLevel + 1] = SIMD4(speakerLevel[4], speakerLevel[5], stereo.x, stereo.y)
+        uniforms[Slot.speakerPunch] = SIMD4(speakerPunch[0], speakerPunch[1], speakerPunch[2], speakerPunch[3])
+        uniforms[Slot.speakerPunch + 1] = SIMD4(speakerPunch[4], speakerPunch[5], 0, 0)
         for i in 0 ..< 3 {
             uniforms[Slot.speakerRingAge + i] = SIMD4(speakerRingAge[4 * i], speakerRingAge[4 * i + 1],
                                                       speakerRingAge[4 * i + 2], speakerRingAge[4 * i + 3])
@@ -338,15 +370,15 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         }
     }
 
-    /// Smooths each speaker's level and sends a ring out from it when it's hit: a jump
-    /// well above its own recent average (a kick for the sub, a snare or vocal for the others).
+    /// Follows each speaker's level closely (up at once, down in ~0.1 s) and, on each hit
+    /// the analyzer finds, flashes it and sends a ring out.
     private func updateSpeakers(dt: Float, now: CFTimeInterval, live: Bool) {
         // Changing layout: fade the old pulses out, then the new ones in.
         if shownLayout != speakerLayout {
             layoutAlpha = max(0, layoutAlpha - dt / 0.25)
             if layoutAlpha == 0 {
                 shownLayout = speakerLayout
-                for i in 0 ..< 6 { speakerLevel[i] = 0; speakerAverage[i] = 0 }
+                for i in 0 ..< 6 { speakerLevel[i] = 0; speakerPunch[i] = 0 }
                 for i in 0 ..< 12 { speakerRingStrength[i] = 0 }
             }
         } else {
@@ -355,19 +387,23 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         let targetStereo = live ? SIMD2(frame.speakers.left, frame.speakers.right) : SIMD2(repeating: 0.3 * energy.w)
         for k in 0 ..< 2 { stereo[k] = Self.approach(stereo[k], targetStereo[k], dt: dt, rise: 0.05, fall: 0.25) }
         let targets = live ? shownLayout.slots(frame.speakers) : [Float](repeating: 0, count: 6)
+        let sources = shownLayout.sources
+        let counts = frame.speakers.hitCount
         for i in 0 ..< 6 {
-            let target = targets[i]
-            speakerLevel[i] = Self.approach(speakerLevel[i], target, dt: dt, rise: i == 3 ? 0.03 : 0.025, fall: i == 3 ? 0.2 : 0.14)
-            speakerAverage[i] += (target - speakerAverage[i]) * (1 - expf(-dt / 0.45))
-            let jump = target - speakerAverage[i]
-            if live, target > 0.3, jump > 0.16, now - speakerLastHit[i] > (i == 3 ? 0.22 : 0.16) {
-                speakerLastHit[i] = now
-                let ring = 2 * i + speakerNextRing[i]
-                speakerNextRing[i] ^= 1
-                speakerRingAge[ring] = 0
-                speakerRingStrength[ring] = min(1, 0.35 + 1.6 * jump)
-            }
+            let isSub = i == 3
+            speakerLevel[i] = Self.approach(speakerLevel[i], targets[i], dt: dt,
+                                            rise: isSub ? 0.012 : 0.008, fall: isSub ? 0.13 : 0.09)
+            speakerPunch[i] *= expf(-dt / (isSub ? 0.09 : 0.07))
+            let source = sources[i]
+            guard live, source >= 0, let last = lastHitCount, counts[source] != last[source] else { continue }
+            let strength = frame.speakers.hitStrength[source]
+            speakerPunch[i] = max(speakerPunch[i], strength)
+            let ring = 2 * i + speakerNextRing[i]
+            speakerNextRing[i] ^= 1
+            speakerRingAge[ring] = 0
+            speakerRingStrength[ring] = strength
         }
+        lastHitCount = live ? counts : nil
         for i in 0 ..< 12 { speakerRingAge[i] += dt }
     }
 }
