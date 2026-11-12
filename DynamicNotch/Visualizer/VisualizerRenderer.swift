@@ -152,10 +152,13 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         setPalette(.fallback, immediately: true)
     }
 
-    /// Compiled once (~0.1 s) and kept for later openings.
+    /// Compiled once (~0.1 s) and kept for later openings. Locked: renderers made at the same
+    /// time on different threads (the tests) raced on it and crashed.
     private static var cachedPipeline: (device: MTLDevice, state: MTLRenderPipelineState)?
+    private static let pipelineLock = NSLock()
 
     private static func pipeline(device: MTLDevice) -> MTLRenderPipelineState? {
+        pipelineLock.lock(); defer { pipelineLock.unlock() }
         if let cached = cachedPipeline, cached.device === device { return cached.state }
         do {
             let library = try device.makeLibrary(source: VisualizerShader.source, options: nil)
@@ -343,7 +346,10 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         phase += Double(dt * (0.22 + 1.5 * energy.w + 0.9 * energy.x + 1.2 * beat))
 
         artAlpha = Self.approach(artAlpha, showsArtwork ? 1 : 0, dt: dt, rise: 0.25, fall: 0.18)
-        let targetScale: Float = (isPlaying ? 1 : 0.94) + 0.045 * energy.x + 0.03 * beat
+        // The cover's own beat effects (its swell, glow and ripples) would read as a middle
+        // speaker in 2.0, which has none: off there, faded with the layout change.
+        let middle: Float = shownLayout == .stereo ? 1 - layoutAlpha : 1
+        let targetScale: Float = (isPlaying ? 1 : 0.94) + middle * (0.045 * energy.x + 0.03 * beat)
         artScale = Self.approach(artScale, targetScale, dt: dt, rise: 0.06, fall: 0.2)
         for i in 0 ..< colours.count {
             let k = 1 - expf(-dt / Float(Self.paletteFade))
@@ -353,7 +359,7 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
         updateSpeakers(dt: dt, now: now, live: live)
 
         uniforms[Slot.energy] = energy
-        uniforms[Slot.beat] = SIMD4(beat, Float(shownLayout.rawValue), layoutAlpha, 0)
+        uniforms[Slot.beat] = SIMD4(beat, Float(shownLayout.rawValue), layoutAlpha, middle)
         uniforms[Slot.art] = SIMD4(Self.artHalfSize, artScale, artAlpha, isPlaying ? 1 : 0)
         for i in 0 ..< 5 { uniforms[Slot.colours + i] = SIMD4(colours[i], 1) }
         uniforms[Slot.rippleAge] = rippleAge

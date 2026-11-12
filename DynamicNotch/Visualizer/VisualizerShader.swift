@@ -30,7 +30,8 @@ vertex VizOut viz_vertex(uint vid [[vertex_id]]) {
 struct VizUniforms {
     float4 frame;     // resolution x, y, time, phase
     float4 energy;    // bass, mid, treble, loudness
-    float4 beat;      // beat flash, speaker layout (0 off, 1 = 2.0, 2 = 2.1, 3 = 5.1), layout fade, -
+    float4 beat;      // beat flash, speaker layout (0 off, 1 = 2.0, 2 = 2.1, 3 = 5.1), layout fade,
+                      // the cover's own beat glow and ripples (0 in 2.0: no middle speaker)
     float4 art;       // half size (fraction of height), scale, alpha, playing
     float4 colors[5]; // background, accents 1-4
     float4 rippleAge;
@@ -110,7 +111,7 @@ static float3 flow(constant VizUniforms &u, float2 p) {
     // Bright filaments where the flow folds.
     float fold = smoothstep(0.018, 0.0, abs(n - 0.55 - 0.05 * sin(t * 3.0)));
     c += mix(u.colors[1].rgb, float3(1.0), 0.3) * fold * (0.2 + 0.9 * treble) * drive;
-    c += ripples(u, p) * 0.6;
+    c += ripples(u, p) * 0.6 * u.beat.w;
     return c;
 }
 
@@ -217,7 +218,7 @@ fragment float4 viz_fragment(VizOut in [[stage_in]],
         float radius = h * 0.06;
         float sd = roundedBox(p, float2(h), radius);
         float beat = u.beat.x;
-        c += u.colors[1].rgb * exp(-max(sd, 0.0) * 9.0) * (0.10 + 0.25 * u.energy.x + 0.25 * beat) * alpha;
+        c += u.colors[1].rgb * exp(-max(sd, 0.0) * 9.0) * (0.10 + (0.25 * u.energy.x + 0.25 * beat) * u.beat.w) * alpha;
         float shadow = exp(-max(roundedBox(p + float2(0.0, 0.018), float2(h), radius), 0.0) * 22.0);
         c *= 1.0 - 0.55 * shadow * alpha * step(0.0, sd);
         float2 uv = float2(p.x, -p.y) / (2.0 * h) + 0.5;
