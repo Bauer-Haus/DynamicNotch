@@ -27,18 +27,19 @@ struct VisualizerFrame {
 }
 
 /// How loud each speaker would be, 0...1, from the full-resolution left and right channels
-/// (music apps send stereo). The sound is split between the speakers by frequency, like the
-/// crossover in a speaker system, so each frequency drives one speaker:
+/// (music apps send stereo), split the way a home theatre receiver upmixes stereo music,
+/// with its crossovers set for this system:
 /// - 2.0: left and right, full range, each from its own channel.
-/// - 2.1: the sub takes the lows (20-80 Hz, a home subwoofer's usual crossover); left and
-///   right everything above.
-/// - 5.1: the sub takes the lows, front left and right the mids (80 Hz - 3.5 kHz) of their
-///   own side, the centre the highs (above 3.5 kHz). The surrounds take the ambience: sound
-///   that differs between the two sides (reverb, room, wide effects), which is what rear
-///   speakers carry when a receiver upmixes stereo. A mono recording leaves them dark.
-/// Each speaker is measured against its own recent peak (highs are naturally ~20 dB quieter
-/// than mids, so a shared scale would leave the centre dark), but never boosted by more than
-/// a set amount relative to the track, so a speaker with nothing to play stays dark.
+/// - 2.1: left and right from 40 Hz up (the fronts' crossover), the sub below 50 Hz.
+/// - 5.1: each sound goes where a receiver would put it. What's the same in both channels
+///   (vocals, kick, snare: the middle of the mix) to the centre, from 60 Hz up. What's
+///   only or mostly on one side to that side's front, from 40 Hz up. Sound that differs
+///   between the sides (reverb, room, wide effects) to the surrounds, from 70 Hz up. A mono
+///   recording leaves the fronts and surrounds dark, as it would on a receiver.
+/// - The sub: everything below its 50 Hz low-pass.
+/// Crossovers are 4th-order Linkwitz-Riley (24 dB/octave), as receivers use. Each speaker is
+/// measured against its own recent peak, but never boosted by more than a set amount
+/// relative to the track, so a speaker with nothing to play stays dark.
 struct SpeakerLevels {
     /// 2.0.
     var left: Float = 0
@@ -46,13 +47,13 @@ struct SpeakerLevels {
     /// 2.1: left and right above the sub.
     var leftMain: Float = 0
     var rightMain: Float = 0
-    /// 5.1: fronts are mids, centre highs, surrounds ambience.
+    /// 5.1: fronts are each side's own sound, centre what both share, surrounds ambience.
     var frontLeft: Float = 0
     var frontRight: Float = 0
     var centre: Float = 0
     var surroundLeft: Float = 0
     var surroundRight: Float = 0
-    /// The .1: the lows.
+    /// The .1: below 50 Hz.
     var sub: Float = 0
     /// Hits (a sharp rise: a drum, a pluck, a consonant), per speaker in `Speaker` order:
     /// each is bumped on a hit, with that hit's size 0...1.
@@ -97,16 +98,18 @@ final class VisualizerAnalyzer {
     static let hitRise: Float = 0.18
     /// ...at least this many analyses (~75 ms) after the last one.
     static let hitGap = 7
-    /// Crossover points: the sub plays below `subUpToHz`, the 5.1 fronts up to `midsUpToHz`
-    /// and the centre above it. 80 Hz is where home theatre systems normally cross over to the
-    /// subwoofer (the THX recommendation, and most receivers' default).
-    static let subUpToHz: Float = 80
-    static let midsUpToHz: Float = 3500
+    /// Crossovers, set like the receiver of this system: fronts (rated 30 Hz - 20 kHz) cross
+    /// over at 40 Hz, the centre (45 Hz - 25 kHz) at 60 Hz, the surrounds (50 Hz - 20 kHz) at
+    /// 60-80 Hz, so 70; the sub (20-200 Hz) is low-passed at 40-60 Hz, so 50.
+    static let frontsFromHz: Float = 40
+    static let centreFromHz: Float = 60
+    static let surroundsFromHz: Float = 70
+    static let subUpToHz: Float = 50
     /// How far (dB) each group of speakers may be boosted above the track's loudness to fill
-    /// its pulse: 2.0, 2.1 mains, 5.1 fronts (mids), centre (highs), surrounds, sub.
+    /// its pulse: 2.0, 2.1 mains, 5.1 fronts, centre, surrounds, sub.
     /// The sub's is small: bass carries most of a mix's energy, so a sub with little to
-    /// play (an acoustic track, or the tail of a 100 Hz note past the crossover) stays dim.
-    static let speakerBoostDB: [Float] = [0, 6, 10, 24, 15, 8]
+    /// play (an acoustic track) stays dim.
+    static let speakerBoostDB: [Float] = [0, 6, 10, 10, 15, 10]
     /// Those groups' speakers, as indices into `speakerDB`.
     private static let speakerGroups: [(Int, Int)] = [(0, 1), (2, 3), (4, 5), (6, 6), (7, 8), (9, 9)]
 
@@ -121,11 +124,17 @@ final class VisualizerAnalyzer {
     private var ringFilled = 0
     private var sinceAnalysis = 0
     private var hopSumSquares: Float = 0
-    /// The sub's crossover: a 4th-order Linkwitz-Riley low-pass at `subUpToHz` (two 2nd-order
-    /// Butterworth stages, 24 dB/octave), the filter home theatre receivers use, run on the
-    /// mono mix. The FFT's ~23 Hz bins are too coarse to split the bass this finely.
-    private let subFilter: (b0: Float, b1: Float, b2: Float, a1: Float, a2: Float)
-    private var subState = [Float](repeating: 0, count: 8) // x1, x2, y1, y2 for each stage
+    /// The crossovers run on the samples: the FFT's ~23 Hz bins are far too coarse to tell
+    /// 40 Hz from 60. The sub's low-pass runs on the mono mix; the fronts' high-pass on each
+    /// side, whose spectra (`realFL`...) the 2.1 and 5.1 speakers are measured from.
+    private var subFilter: LinkwitzRiley
+    private var frontFilterL: LinkwitzRiley
+    private var frontFilterR: LinkwitzRiley
+    private var ringFL = [Float](repeating: 0, count: fftSize)
+    private var ringFR = [Float](repeating: 0, count: fftSize)
+    /// The centre's and surrounds' higher crossovers, on top of the fronts' (power, per bin).
+    private let centreWeight: [Float]
+    private let surroundWeight: [Float]
     private var subHopSquares: Float = 0
     /// The last four hops' sub energy: one analysis window (~43 ms), long enough to hold a
     /// whole cycle of the lowest notes.
@@ -137,6 +146,10 @@ final class VisualizerAnalyzer {
     private var imagL = [Float](repeating: 0, count: fftSize / 2)
     private var realR = [Float](repeating: 0, count: fftSize / 2)
     private var imagR = [Float](repeating: 0, count: fftSize / 2)
+    private var realFL = [Float](repeating: 0, count: fftSize / 2)
+    private var imagFL = [Float](repeating: 0, count: fftSize / 2)
+    private var realFR = [Float](repeating: 0, count: fftSize / 2)
+    private var imagFR = [Float](repeating: 0, count: fftSize / 2)
     private var magnitude = [Float](repeating: 0, count: fftSize / 2)
     private var trackPeakDB: Float = -60
     private var groupPeakDB = [Float](repeating: -60, count: 6)
@@ -181,13 +194,18 @@ final class VisualizerAnalyzer {
         for i in 0 ..< Self.fftSize {
             window[i] = 0.5 - 0.5 * cosf(2 * .pi * Float(i) / Float(Self.fftSize - 1))
         }
-        // RBJ low-pass biquad, Q = 1/sqrt(2).
-        let w0 = 2 * Float.pi * Self.subUpToHz / Float(sampleRate)
-        let alpha = sinf(w0) / (2 * Float(0.5).squareRoot())
-        let a0 = 1 + alpha
-        let cosw = cosf(w0)
-        subFilter = (b0: (1 - cosw) / 2 / a0, b1: (1 - cosw) / a0, b2: (1 - cosw) / 2 / a0,
-                     a1: -2 * cosw / a0, a2: (1 - alpha) / a0)
+        subFilter = LinkwitzRiley(lowPassAt: Self.subUpToHz, sampleRate: Float(sampleRate))
+        frontFilterL = LinkwitzRiley(highPassAt: Self.frontsFromHz, sampleRate: Float(sampleRate))
+        frontFilterR = frontFilterL
+        // A Linkwitz-Riley high-pass passes x^4 / (1 + x^4) of the amplitude, x = f / fc.
+        func highPassPower(_ hz: Float, _ fc: Float) -> Float {
+            let x4 = powf(hz / fc, 4)
+            let h = x4 / (1 + x4)
+            return h * h
+        }
+        let bins = (0 ..< Self.fftSize / 2).map { Float($0) * binHz }
+        centreWeight = bins.map { min(1, highPassPower($0, Self.centreFromHz) / max(highPassPower($0, Self.frontsFromHz), 1e-9)) }
+        surroundWeight = bins.map { min(1, highPassPower($0, Self.surroundsFromHz) / max(highPassPower($0, Self.frontsFromHz), 1e-9)) }
     }
 
     deinit { vDSP_destroy_fftsetup(fftSetup) }
@@ -206,11 +224,13 @@ final class VisualizerAnalyzer {
             let l = left[i], r = right[i]
             ringL[ringWrite] = l
             ringR[ringWrite] = r
+            ringFL[ringWrite] = frontFilterL.process(l)
+            ringFR[ringWrite] = frontFilterR.process(r)
             ringWrite = ringWrite + 1 == Self.fftSize ? 0 : ringWrite + 1
             if ringFilled < Self.fftSize { ringFilled += 1 }
             let m = 0.5 * (l + r)
             hopSumSquares += m * m
-            let lows = subLowPass(m)
+            let lows = subFilter.process(m)
             subHopSquares += lows * lows
             sinceAnalysis += 1
             if ringFilled == Self.fftSize && sinceAnalysis >= Self.hopSize {
@@ -222,22 +242,6 @@ final class VisualizerAnalyzer {
             }
         }
         return produced
-    }
-
-    @inline(__always)
-    private func subLowPass(_ x: Float) -> Float {
-        let f = subFilter
-        var v = x
-        for stage in 0 ..< 2 {
-            let o = stage * 4
-            let y = f.b0 * v + f.b1 * subState[o] + f.b2 * subState[o + 1] - f.a1 * subState[o + 2] - f.a2 * subState[o + 3]
-            subState[o + 1] = subState[o]
-            subState[o] = v
-            subState[o + 3] = subState[o + 2]
-            subState[o + 2] = y
-            v = y
-        }
-        return v
     }
 
     /// Windowed FFT of one ring, oldest sample first, scaled so a full-scale sine reads ~1.0
@@ -273,6 +277,8 @@ final class VisualizerAnalyzer {
         let half = Self.fftSize / 2
         spectrum(of: ringL, real: &realL, imag: &imagL)
         spectrum(of: ringR, real: &realR, imag: &imagR)
+        spectrum(of: ringFL, real: &realFL, imag: &imagFL)
+        spectrum(of: ringFR, real: &realFR, imag: &imagFR)
         // The mono mix's spectrum is the average of the two sides'.
         for k in 0 ..< half {
             let re = 0.5 * (realL[k] + realR[k])
@@ -345,30 +351,29 @@ final class VisualizerAnalyzer {
         var fl: Float = 0, fr: Float = 0, c: Float = 0, sl: Float = 0, sr: Float = 0, sub: Float = 0
         let firstBin = max(1, Int(20 / binHz))
         for k in firstBin ..< half {
-            let hz = Float(k) * binHz
-            let lr = realL[k], li = imagL[k], rr = realR[k], ri = imagR[k]
+            left += realL[k] * realL[k] + imagL[k] * imagL[k]
+            right += realR[k] * realR[k] + imagR[k] * imagR[k]
+            // Above the fronts' crossover.
+            let lr = realFL[k], li = imagFL[k], rr = realFR[k], ri = imagFR[k]
             let a2 = lr * lr + li * li
             let b2 = rr * rr + ri * ri
-            left += a2
-            right += b2
-            if hz < Self.subUpToHz { continue } // the sub's, measured by its own filter
             leftMain += a2
             rightMain += b2
             // How alike the two sides are here: 1 = the same sound in both, 0 = unrelated,
-            // -1 = opposite. Unrelated and opposite sound is ambience (surrounds), but only
-            // when both sides play it: a sound panned hard to one side stays in front.
+            // -1 = opposite; and how evenly they play it. The same sound evenly in both is
+            // the middle of the mix (centre); unrelated or opposite sound in both is ambience
+            // (surrounds); the rest, a sound panned to one side, stays in that side's front.
             let a = sqrtf(a2), b = sqrtf(b2)
             let coherence = max(-1, min(1, (lr * rr + li * ri) / (a * b + 1e-12)))
             let balance = 2 * min(a, b) / (a + b + 1e-12)
+            let toCentre = max(0, coherence) * balance
             let toSurround = 0.5 * (1 - coherence) * balance
-            sl += a2 * toSurround
-            sr += b2 * toSurround
-            if hz < Self.midsUpToHz {
-                fl += a2 * (1 - toSurround)
-                fr += b2 * (1 - toSurround)
-            } else {
-                c += 0.5 * (a2 + b2) * (1 - toSurround)
-            }
+            let toFront = max(0, 1 - toCentre - toSurround)
+            fl += a2 * toFront
+            fr += b2 * toFront
+            c += 0.5 * (a2 + b2) * toCentre * centreWeight[k]
+            sl += a2 * toSurround * surroundWeight[k]
+            sr += b2 * toSurround * surroundWeight[k]
         }
         // The sub's energy over the window, scaled to match the FFT sums (a sine's energy
         // there is ~3x its mean square: the Hann window spreads it over three bins).
@@ -435,5 +440,39 @@ final class VisualizerAnalyzer {
         lastBeatAnalysis = analyses
         frame.beatCount &+= 1
         frame.beatStrength = max(0.25, min(1, (flux - mean) / max(4 * spread, 0.01)))
+    }
+}
+
+/// A 4th-order Linkwitz-Riley crossover filter (two 2nd-order Butterworth stages, RBJ
+/// biquads with Q = 1/sqrt(2)): 24 dB/octave, -6 dB at the crossover, as receivers use.
+struct LinkwitzRiley {
+    private let b0, b1, b2, a1, a2: Float
+    // x1, x2, y1, y2 of each stage.
+    private var s0: (Float, Float, Float, Float) = (0, 0, 0, 0)
+    private var s1: (Float, Float, Float, Float) = (0, 0, 0, 0)
+
+    init(lowPassAt hz: Float, sampleRate: Float) { self.init(hz, sampleRate, highPass: false) }
+    init(highPassAt hz: Float, sampleRate: Float) { self.init(hz, sampleRate, highPass: true) }
+
+    private init(_ hz: Float, _ sampleRate: Float, highPass: Bool) {
+        let w0 = 2 * Float.pi * hz / sampleRate
+        let alpha = sinf(w0) / (2 * Float(0.5).squareRoot())
+        let a0 = 1 + alpha
+        let cosw = cosf(w0)
+        let k: Float = highPass ? (1 + cosw) / 2 : (1 - cosw) / 2
+        b0 = k / a0
+        b1 = (highPass ? -2 * k : 2 * k) / a0
+        b2 = k / a0
+        a1 = -2 * cosw / a0
+        a2 = (1 - alpha) / a0
+    }
+
+    @inline(__always)
+    mutating func process(_ x: Float) -> Float {
+        let y0 = b0 * x + b1 * s0.0 + b2 * s0.1 - a1 * s0.2 - a2 * s0.3
+        s0 = (x, s0.0, y0, s0.2)
+        let y1 = b0 * y0 + b1 * s1.0 + b2 * s1.1 - a1 * s1.2 - a2 * s1.3
+        s1 = (y0, s1.0, y1, s1.2)
+        return y1
     }
 }

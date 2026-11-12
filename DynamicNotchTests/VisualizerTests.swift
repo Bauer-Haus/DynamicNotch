@@ -102,39 +102,49 @@ struct VisualizerTests {
         #expect(s.left > 0.8 && s.right < 0.1)
         #expect(s.frontLeft > 0.8 && s.frontRight < 0.1)
         // Panned hard, it stays in front.
-        #expect(s.surroundLeft < 0.1 && s.surroundRight < 0.1)
+        #expect(s.centre < 0.1 && s.surroundLeft < 0.1 && s.surroundRight < 0.1)
     }
 
-    @Test func midsGoToLeftAndRight() throws {
+    /// The same sound in both channels is the middle of the mix: the centre's, as a receiver
+    /// upmixing stereo would play it.
+    @Test func sameInBothGoesToTheCentre() throws {
         let s = try speakers { t in let v = Self.tone(1000, t); return (v, v) }
-        #expect(s.frontLeft > 0.8 && s.frontRight > 0.8)
-        #expect(s.centre < 0.1 && s.sub < 0.1)
-        #expect(s.surroundLeft < 0.1 && s.surroundRight < 0.1)
-    }
-
-    @Test func highsGoToTheCentre() throws {
-        let s = try speakers { t in let v = Self.tone(8000, t); return (v, v) }
         #expect(s.centre > 0.8)
         #expect(s.frontLeft < 0.1 && s.frontRight < 0.1 && s.sub < 0.1)
-        // 2.0 and 2.1 still play them on both sides.
+        #expect(s.surroundLeft < 0.1 && s.surroundRight < 0.1)
+        // 2.0 and 2.1 still play it on both sides.
         #expect(s.left > 0.8 && s.rightMain > 0.8)
     }
 
+    /// Different sounds on each side (a wide stereo mix) stay in their own fronts.
+    @Test func eachSideGoesToItsFront() throws {
+        let s = try speakers { t in (Self.tone(900, t), Self.tone(1400, t)) }
+        #expect(s.frontLeft > 0.8 && s.frontRight > 0.8)
+        #expect(s.centre < 0.1, "C \(s.centre)")
+    }
+
     @Test func lowsGoToTheSub() throws {
-        let s = try speakers { t in let v = Self.tone(50, t); return (v, v) }
+        let s = try speakers { t in let v = Self.tone(25, t); return (v, v) }
         #expect(s.sub > 0.8)
-        #expect(s.leftMain < 0.1 && s.rightMain < 0.1)
+        #expect(s.leftMain < 0.1 && s.rightMain < 0.1, "mains \(s.leftMain)")
         #expect(s.frontLeft < 0.1 && s.centre < 0.1)
         #expect(s.left > 0.8)
     }
 
-    /// The sub crosses over at 80 Hz like a home theatre's (24 dB/octave): a 150 Hz note is
-    /// the fronts', a 40 Hz one the sub's.
-    @Test func subCrossesOverAt80Hz() throws {
-        let above = try speakers { t in let v = Self.tone(150, t); return (v, v) }
-        #expect(above.frontLeft > 0.8 && above.sub < 0.2, "FL \(above.frontLeft), sub \(above.sub)")
-        let below = try speakers { t in let v = Self.tone(40, t); return (v, v) }
-        #expect(below.sub > 0.8 && below.frontLeft < 0.2, "sub \(below.sub), FL \(below.frontLeft)")
+    /// The sub is low-passed at 50 Hz and the centre crosses over at 60 (24 dB/octave): a
+    /// 120 Hz note is the centre's, a 25 Hz one the sub's.
+    @Test func subCrossesOverAt50Hz() throws {
+        let above = try speakers { t in let v = Self.tone(120, t); return (v, v) }
+        #expect(above.centre > 0.8 && above.sub < 0.2, "C \(above.centre), sub \(above.sub)")
+        let below = try speakers { t in let v = Self.tone(25, t); return (v, v) }
+        #expect(below.sub > 0.8 && below.centre < 0.2, "sub \(below.sub), C \(below.centre)")
+    }
+
+    /// The fronts cross over at 40 Hz, so they still play a 50 Hz bass line panned to them.
+    @Test func frontsReachDownTo40Hz() throws {
+        let s = try speakers { t in (Self.tone(50, t), 0) }
+        #expect(s.frontLeft > 0.6, "FL \(s.frontLeft)")
+        #expect(s.frontRight < 0.1)
     }
 
     @Test func ambienceGoesToTheSurrounds() throws {
@@ -146,9 +156,10 @@ struct VisualizerTests {
     /// A full mix: each speaker gets its part.
     @Test func mixSplitsAcrossSpeakers() throws {
         let s = try speakers(seconds: 3) { t in
-            let low = Self.tone(55, t, 0.4), mid = Self.tone(700, t, 0.2), high = Self.tone(7000, t, 0.03)
+            let low = Self.tone(30, t, 0.4), vocal = Self.tone(700, t, 0.2)
+            let guitar = Self.tone(900, t, 0.1), keys = Self.tone(1100, t, 0.1)
             let room = Self.tone(1300, t, 0.05)
-            return (low + mid + high + room, low + mid + high - room)
+            return (low + vocal + guitar + room, low + vocal + keys - room)
         }
         for (name, level) in [("sub", s.sub), ("FL", s.frontLeft), ("FR", s.frontRight), ("C", s.centre),
                               ("SL", s.surroundLeft), ("SR", s.surroundRight)] {
@@ -187,7 +198,7 @@ struct VisualizerTests {
             let v = Self.tone(1000, t, 0.5 * gain)
             return (v, v)
         }
-        let late = trace.suffix(150).map(\.frontLeft)
+        let late = trace.suffix(150).map(\.centre)
         #expect(late.max()! - late.min()! > 0.6, "swing \(late.max()! - late.min()!)")
     }
 
