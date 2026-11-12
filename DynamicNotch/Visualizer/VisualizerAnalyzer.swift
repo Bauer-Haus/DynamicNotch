@@ -30,8 +30,9 @@ struct VisualizerFrame {
 /// (music apps send stereo). The sound is split between the speakers by frequency, like the
 /// crossover in a speaker system, so each frequency drives one speaker:
 /// - 2.0: left and right, full range, each from its own channel.
-/// - 2.1: the sub takes the lows (below 120 Hz); left and right everything above.
-/// - 5.1: the sub takes the lows, front left and right the mids (120 Hz - 3.5 kHz) of their
+/// - 2.1: the sub takes the lows (20-80 Hz, a home subwoofer's usual crossover); left and
+///   right everything above.
+/// - 5.1: the sub takes the lows, front left and right the mids (80 Hz - 3.5 kHz) of their
 ///   own side, the centre the highs (above 3.5 kHz). The surrounds take the ambience: sound
 ///   that differs between the two sides (reverb, room, wide effects), which is what rear
 ///   speakers carry when a receiver upmixes stereo. A mono recording leaves them dark.
@@ -97,12 +98,15 @@ final class VisualizerAnalyzer {
     /// ...at least this many analyses (~75 ms) after the last one.
     static let hitGap = 7
     /// Crossover points: the sub plays below `subUpToHz`, the 5.1 fronts up to `midsUpToHz`
-    /// and the centre above it.
-    static let subUpToHz: Float = 120
+    /// and the centre above it. 80 Hz is where home theatre systems normally cross over to the
+    /// subwoofer (the THX recommendation, and most receivers' default).
+    static let subUpToHz: Float = 80
     static let midsUpToHz: Float = 3500
     /// How far (dB) each group of speakers may be boosted above the track's loudness to fill
     /// its pulse: 2.0, 2.1 mains, 5.1 fronts (mids), centre (highs), surrounds, sub.
-    static let speakerBoostDB: [Float] = [0, 6, 10, 24, 15, 20]
+    /// The sub's is small: bass carries most of a mix's energy, so a sub with little to
+    /// play (an acoustic track, or the tail of a 100 Hz note past the crossover) stays dim.
+    static let speakerBoostDB: [Float] = [0, 6, 10, 24, 15, 8]
     /// Those groups' speakers, as indices into `speakerDB`.
     private static let speakerGroups: [(Int, Int)] = [(0, 1), (2, 3), (4, 5), (6, 6), (7, 8), (9, 9)]
 
@@ -117,6 +121,16 @@ final class VisualizerAnalyzer {
     private var ringFilled = 0
     private var sinceAnalysis = 0
     private var hopSumSquares: Float = 0
+    /// The sub's crossover: a 4th-order Linkwitz-Riley low-pass at `subUpToHz` (two 2nd-order
+    /// Butterworth stages, 24 dB/octave), the filter home theatre receivers use, run on the
+    /// mono mix. The FFT's ~23 Hz bins are too coarse to split the bass this finely.
+    private let subFilter: (b0: Float, b1: Float, b2: Float, a1: Float, a2: Float)
+    private var subState = [Float](repeating: 0, count: 8) // x1, x2, y1, y2 for each stage
+    private var subHopSquares: Float = 0
+    /// The last four hops' sub energy: one analysis window (~43 ms), long enough to hold a
+    /// whole cycle of the lowest notes.
+    private var subHops = [Float](repeating: 0, count: 4)
+    private var subHopWrite = 0
     private var windowed = [Float](repeating: 0, count: fftSize)
     private var unrolled = [Float](repeating: 0, count: fftSize)
     private var realL = [Float](repeating: 0, count: fftSize / 2)
@@ -167,6 +181,13 @@ final class VisualizerAnalyzer {
         for i in 0 ..< Self.fftSize {
             window[i] = 0.5 - 0.5 * cosf(2 * .pi * Float(i) / Float(Self.fftSize - 1))
         }
+        // RBJ low-pass biquad, Q = 1/sqrt(2).
+        let w0 = 2 * Float.pi * Self.subUpToHz / Float(sampleRate)
+        let alpha = sinf(w0) / (2 * Float(0.5).squareRoot())
+        let a0 = 1 + alpha
+        let cosw = cosf(w0)
+        subFilter = (b0: (1 - cosw) / 2 / a0, b1: (1 - cosw) / a0, b2: (1 - cosw) / 2 / a0,
+                     a1: -2 * cosw / a0, a2: (1 - alpha) / a0)
     }
 
     deinit { vDSP_destroy_fftsetup(fftSetup) }
@@ -189,15 +210,34 @@ final class VisualizerAnalyzer {
             if ringFilled < Self.fftSize { ringFilled += 1 }
             let m = 0.5 * (l + r)
             hopSumSquares += m * m
+            let lows = subLowPass(m)
+            subHopSquares += lows * lows
             sinceAnalysis += 1
             if ringFilled == Self.fftSize && sinceAnalysis >= Self.hopSize {
                 analyse(hopRMS: sqrtf(hopSumSquares / Float(sinceAnalysis)))
                 sinceAnalysis = 0
                 hopSumSquares = 0
+                subHopSquares = 0
                 produced = true
             }
         }
         return produced
+    }
+
+    @inline(__always)
+    private func subLowPass(_ x: Float) -> Float {
+        let f = subFilter
+        var v = x
+        for stage in 0 ..< 2 {
+            let o = stage * 4
+            let y = f.b0 * v + f.b1 * subState[o] + f.b2 * subState[o + 1] - f.a1 * subState[o + 2] - f.a2 * subState[o + 3]
+            subState[o + 1] = subState[o]
+            subState[o] = v
+            subState[o + 3] = subState[o + 2]
+            subState[o + 2] = y
+            v = y
+        }
+        return v
     }
 
     /// Windowed FFT of one ring, oldest sample first, scaled so a full-scale sine reads ~1.0
@@ -311,11 +351,7 @@ final class VisualizerAnalyzer {
             let b2 = rr * rr + ri * ri
             left += a2
             right += b2
-            if hz < Self.subUpToHz {
-                let mr = 0.5 * (lr + rr), mi = 0.5 * (li + ri)
-                sub += mr * mr + mi * mi
-                continue
-            }
+            if hz < Self.subUpToHz { continue } // the sub's, measured by its own filter
             leftMain += a2
             rightMain += b2
             // How alike the two sides are here: 1 = the same sound in both, 0 = unrelated,
@@ -334,6 +370,11 @@ final class VisualizerAnalyzer {
                 c += 0.5 * (a2 + b2) * (1 - toSurround)
             }
         }
+        // The sub's energy over the window, scaled to match the FFT sums (a sine's energy
+        // there is ~3x its mean square: the Hann window spreads it over three bins).
+        subHops[subHopWrite] = subHopSquares / Float(Self.hopSize)
+        subHopWrite = (subHopWrite + 1) % subHops.count
+        sub = 3 * (subHops[0] + subHops[1] + subHops[2] + subHops[3]) / 4
         func db(_ energy: Float) -> Float { 10 * log10f(energy + 1e-12) }
         speakerDB[0] = db(left); speakerDB[1] = db(right)
         speakerDB[2] = db(leftMain); speakerDB[3] = db(rightMain)

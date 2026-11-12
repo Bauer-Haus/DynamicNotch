@@ -128,6 +128,15 @@ struct VisualizerTests {
         #expect(s.left > 0.8)
     }
 
+    /// The sub crosses over at 80 Hz like a home theatre's (24 dB/octave): a 150 Hz note is
+    /// the fronts', a 40 Hz one the sub's.
+    @Test func subCrossesOverAt80Hz() throws {
+        let above = try speakers { t in let v = Self.tone(150, t); return (v, v) }
+        #expect(above.frontLeft > 0.8 && above.sub < 0.2, "FL \(above.frontLeft), sub \(above.sub)")
+        let below = try speakers { t in let v = Self.tone(40, t); return (v, v) }
+        #expect(below.sub > 0.8 && below.frontLeft < 0.2, "sub \(below.sub), FL \(below.frontLeft)")
+    }
+
     @Test func ambienceGoesToTheSurrounds() throws {
         let s = try speakers { t in let v = Self.tone(1000, t); return (v, -v) }
         #expect(s.surroundLeft > 0.8 && s.surroundRight > 0.8)
