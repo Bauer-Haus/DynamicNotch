@@ -20,6 +20,7 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
     case goForward
     case output
     case visualizer
+    case albumFlow
     case none
 
     var id: String { rawValue }
@@ -48,7 +49,8 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
         .goBackward,
         .goForward,
         .output,
-        .visualizer
+        .visualizer,
+        .albumFlow
     ]
 
     var label: String {
@@ -75,6 +77,8 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
             return "Output (AirPlay)"
         case .visualizer:
             return "Visualizer"
+        case .albumFlow:
+            return "Album Flow"
         case .none:
             return "Empty slot"
         }
@@ -104,6 +108,8 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
             return "airplay.audio"
         case .visualizer:
             return "sparkles"
+        case .albumFlow:
+            return "square.stack.fill"
         case .none:
             return ""
         }
@@ -122,6 +128,7 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
         case .favorite: return 18
         case .output: return 17
         case .visualizer: return 18
+        case .albumFlow: return 17
         default: return 16
         }
     }

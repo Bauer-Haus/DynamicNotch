@@ -195,4 +195,11 @@ class NotchViewModel: NSObject, ObservableObject {
         let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) }
         VisualizerWindowController.shared.show(on: screen)
     }
+
+    /// Closes the notch and opens Album Flow on this notch's display.
+    func openAlbumFlow() {
+        close()
+        let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) }
+        AlbumFlowWindowController.shared.show(on: screen)
+    }
 }

@@ -27,6 +27,11 @@ struct DynamicNotchApp: App {
                     VisualizerWindowController.shared.show()
                 }
             }
+            Button("Open Album Flow") {
+                DispatchQueue.main.async {
+                    AlbumFlowWindowController.shared.show()
+                }
+            }
             Divider()
             Button("Settings") {
                 DispatchQueue.main.async {

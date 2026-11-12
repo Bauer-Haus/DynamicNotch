@@ -86,6 +86,11 @@ struct MusicControlsView: View {
                 vm.openVisualizer()
             }
             .help("Open Visualizer")
+        case .albumFlow:
+            HoverButton(icon: "square.stack.fill", iconColor: .gray, scale: .medium, pointSize: slot.pointSize) {
+                vm.openAlbumFlow()
+            }
+            .help("Open Album Flow")
         case .none:
             EmptyView()
         }
