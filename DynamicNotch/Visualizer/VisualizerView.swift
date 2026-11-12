@@ -28,6 +28,21 @@ final class VisualizerModel: ObservableObject {
             Defaults[.visualizerSpeakers] = speakerLayout.rawValue
         }
     }
+    /// Holds the light back to match AirPods (or other Bluetooth output), which play the
+    /// sound a moment after the tap hears it.
+    @Published var airPodsDelay: Bool {
+        didSet {
+            Defaults[.visualizerAirPodsDelay] = airPodsDelay
+            applyDelay()
+        }
+    }
+    @Published var airPodsDelayMs: Int {
+        didSet {
+            Defaults[.visualizerAirPodsDelayMs] = airPodsDelayMs
+            applyDelay()
+        }
+    }
+    static let delayChoicesMs = [100, 150, 200, 250, 300]
     @Published private(set) var controlsVisible = true
     var isHoveringControls = false
 
@@ -40,8 +55,11 @@ final class VisualizerModel: ObservableObject {
         self.renderer = renderer
         self.showsArtwork = Defaults[.visualizerShowsArtwork]
         self.speakerLayout = SpeakerLayout(rawValue: Defaults[.visualizerSpeakers]) ?? .stereo
+        self.airPodsDelay = Defaults[.visualizerAirPodsDelay]
+        self.airPodsDelayMs = Defaults[.visualizerAirPodsDelayMs]
         renderer.showsArtwork = showsArtwork
         renderer.speakerLayout = speakerLayout
+        applyDelay()
 
         let music = MusicManager.shared
         music.$albumArt
@@ -81,6 +99,15 @@ final class VisualizerModel: ObservableObject {
         let all = SpeakerLayout.allCases
         speakerLayout = all[(speakerLayout.rawValue + 1) % all.count]
         showControls()
+    }
+
+    func toggleAirPodsDelay() {
+        airPodsDelay.toggle()
+        showControls()
+    }
+
+    private func applyDelay() {
+        VisualizerAudio.shared.delay = airPodsDelay ? Double(airPodsDelayMs) / 1000 : 0
     }
 
     func toggleArtwork() {
@@ -130,6 +157,8 @@ struct VisualizerView: View {
 
             speakerPicker
 
+            delayToggle
+
             GlassIconButton(icon: model.showsArtwork ? "photo.fill" : "photo",
                             help: model.showsArtwork ? "Hide Album Art (A)" : "Show Album Art (A)") {
                 model.toggleArtwork()
@@ -168,6 +197,62 @@ struct VisualizerView: View {
         .padding(4)
         .glassEffect(.regular, in: .capsule)
         .help("Speaker pulses (S)")
+        .padding(.trailing, 8)
+    }
+
+    /// AirPods delay: the icon turns it on and off; the amount picks how long.
+    private var delayToggle: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.smooth(duration: 0.25)) { model.toggleAirPodsDelay() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "airpods")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(model.airPodsDelay ? "Delay" : "Delay Off")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(model.airPodsDelay ? .white : .white.opacity(0.6))
+                .padding(.leading, 12)
+                .padding(.trailing, model.airPodsDelay ? 4 : 12)
+                .padding(.vertical, 8)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(model.airPodsDelay ? "Turn Off AirPods Delay (D)" : "Delay the Visualizer to Match AirPods (D)")
+
+            if model.airPodsDelay {
+                Menu {
+                    ForEach(VisualizerModel.delayChoicesMs, id: \.self) { ms in
+                        Button {
+                            model.airPodsDelayMs = ms
+                            model.showControls()
+                        } label: {
+                            if ms == model.airPodsDelayMs {
+                                Label("\(ms) ms", systemImage: "checkmark")
+                            } else {
+                                Text("\(ms) ms")
+                            }
+                        }
+                    }
+                } label: {
+                    Text("\(model.airPodsDelayMs) ms")
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(.white.opacity(0.16)))
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("How long to hold the light back")
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .padding(4)
+        .glassEffect(.regular, in: .capsule)
         .padding(.trailing, 8)
     }
 

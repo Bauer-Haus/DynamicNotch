@@ -88,6 +88,10 @@ extension Defaults.Keys {
     static let visualizerShowsArtwork = Key<Bool>("visualizerShowsArtwork", default: true)
     /// Its speaker pulses (`SpeakerLayout` raw value: off, 2.0, 2.1, 5.1).
     static let visualizerSpeakers = Key<Int>("visualizerSpeakers", default: 1)
+    /// Holds the visualizer back to match Bluetooth headphones (AirPods play the sound later
+    /// than the tap sees it), by `visualizerAirPodsDelayMs`.
+    static let visualizerAirPodsDelay = Key<Bool>("visualizerAirPodsDelay", default: false)
+    static let visualizerAirPodsDelayMs = Key<Int>("visualizerAirPodsDelayMs", default: 150)
 
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)

@@ -362,3 +362,52 @@ struct VisualizerTests {
         }
     }
 }
+
+@Suite("Visualizer AirPods delay")
+struct VisualizerDelayTests {
+    private func frame(_ loudness: Float) -> VisualizerFrame {
+        var f = VisualizerFrame()
+        f.loudness = loudness
+        return f
+    }
+
+    @Test func withoutDelayShowsTheLatest() {
+        let audio = VisualizerAudio()
+        for k in 0 ..< 20 { audio.record(frame(Float(k)), at: 100 + Double(k) * 0.01) }
+        var out = VisualizerFrame()
+        let age = audio.read(into: &out, now: 100.2)
+        #expect(out.loudness == 19)
+        #expect(abs(age - 0.01) < 1e-6)
+    }
+
+    @Test func delayShowsTheFrameFromThatLongAgo() {
+        let audio = VisualizerAudio()
+        audio.delay = 0.15
+        for k in 0 ..< 40 { audio.record(frame(Float(k)), at: 100 + Double(k) * 0.01) }
+        var out = VisualizerFrame()
+        // Now 100.40: due 100.25, frame 25.
+        let age = audio.read(into: &out, now: 100.40)
+        #expect(out.loudness == 25)
+        #expect(age < 0.011)
+    }
+
+    @Test func delayJustStartedWaitsForAudio() {
+        let audio = VisualizerAudio()
+        audio.delay = 0.2
+        audio.record(frame(1), at: 100)
+        var out = VisualizerFrame()
+        #expect(audio.read(into: &out, now: 100.05) == .infinity)
+    }
+
+    @Test func longestDelayFitsTheHistoryAt96kHz() {
+        let audio = VisualizerAudio()
+        audio.delay = 1
+        #expect(audio.delay == VisualizerAudio.maxDelay)
+        let hop = 512.0 / 96000
+        let count = 200
+        for k in 0 ..< count { audio.record(frame(Float(k)), at: 100 + Double(k) * hop) }
+        var out = VisualizerFrame()
+        let age = audio.read(into: &out, now: 100 + Double(count - 1) * hop)
+        #expect(age < hop + 1e-6)
+    }
+}

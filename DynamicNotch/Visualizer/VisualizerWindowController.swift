@@ -130,6 +130,7 @@ final class VisualizerWindowController {
             switch event.charactersIgnoringModifiers?.lowercased() {
             case "a": model.toggleArtwork()
             case "s": model.cycleSpeakerLayout()
+            case "d": model.toggleAirPodsDelay()
             default: return false
             }
         }
