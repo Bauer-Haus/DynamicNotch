@@ -21,8 +21,29 @@ enum AudioOutputEvent {
     case defaultDeviceChanged
 }
 
-/// Called on the queue the monitor passes to `startTap`, with the tap's audio mixed to mono.
-typealias AudioSamplesHandler = (UnsafeBufferPointer<Float>) -> Void
+/// One buffer of the tap's audio: mixed to mono, and its left and right channels (both the
+/// same as `mono` for a mono source).
+struct AudioSamples {
+    let mono: UnsafeBufferPointer<Float>
+    let left: UnsafeBufferPointer<Float>
+    let right: UnsafeBufferPointer<Float>
+
+    /// A mono buffer (tests, simulated taps).
+    init(mono: UnsafeBufferPointer<Float>) {
+        self.mono = mono
+        left = mono
+        right = mono
+    }
+
+    init(mono: UnsafeBufferPointer<Float>, left: UnsafeBufferPointer<Float>, right: UnsafeBufferPointer<Float>) {
+        self.mono = mono
+        self.left = left
+        self.right = right
+    }
+}
+
+/// Called on the queue the monitor passes to `startTap`, with each buffer of the tap's audio.
+typealias AudioSamplesHandler = (AudioSamples) -> Void
 /// Makes the handler for a tap once its sample rate is known.
 typealias AudioSamplesHandlerFactory = (_ sampleRate: Double) -> AudioSamplesHandler
 
@@ -133,10 +154,16 @@ final class CoreAudioTapSystem: AudioTapSystem {
 
         let samples = makeHandler(sampleRate)
         var mono = [Float]()
+        var left = [Float]()
+        var right = [Float]()
         var ioProc: AudioDeviceIOProcID?
         let procStatus = AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregate, deliveryQueue) { _, inData, _, _, _ in
-            Self.mixToMono(inData, into: &mono)
-            mono.withUnsafeBufferPointer(samples)
+            Self.split(inData, mono: &mono, left: &left, right: &right)
+            mono.withUnsafeBufferPointer { m in
+                left.withUnsafeBufferPointer { l in
+                    right.withUnsafeBufferPointer { r in samples(AudioSamples(mono: m, left: l, right: r)) }
+                }
+            }
         }
         guard procStatus == noErr, let ioProc else {
             AudioHardwareDestroyAggregateDevice(aggregate)
@@ -189,31 +216,46 @@ final class CoreAudioTapSystem: AudioTapSystem {
 
     // MARK: Helpers
 
-    /// Mono-mixes whatever layout arrived (interleaved, or one buffer per channel).
-    private static func mixToMono(_ inData: UnsafePointer<AudioBufferList>, into mono: inout [Float]) {
+    /// Mono-mixes whatever layout arrived (interleaved, or one buffer per channel), and keeps
+    /// the first two channels as left and right (both the mono mix for a one-channel tap).
+    private static func split(_ inData: UnsafePointer<AudioBufferList>,
+                              mono: inout [Float], left: inout [Float], right: inout [Float]) {
         let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
         guard let first = buffers.first, let base = first.mData?.assumingMemoryBound(to: Float.self) else {
             mono.removeAll(keepingCapacity: true)
+            left.removeAll(keepingCapacity: true)
+            right.removeAll(keepingCapacity: true)
             return
         }
         if buffers.count > 1 {
             let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size
             resize(&mono, frames)
+            resize(&left, frames)
+            resize(&right, frames)
             var n: Float = 0
-            for b in buffers {
+            var hasRight = false
+            for (index, b) in buffers.enumerated() {
                 guard let p = b.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 n += 1
-                for f in 0 ..< min(frames, Int(b.mDataByteSize) / MemoryLayout<Float>.size) { mono[f] += p[f] }
+                let count = min(frames, Int(b.mDataByteSize) / MemoryLayout<Float>.size)
+                for f in 0 ..< count { mono[f] += p[f] }
+                if index == 0 { for f in 0 ..< count { left[f] = p[f] } }
+                if index == 1 { for f in 0 ..< count { right[f] = p[f] }; hasRight = true }
             }
             if n > 1 { for f in 0 ..< frames { mono[f] /= n } }
+            if !hasRight { for f in 0 ..< frames { right[f] = left[f] } }
         } else {
             let channels = max(1, Int(first.mNumberChannels))
             let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channels
             resize(&mono, frames)
+            resize(&left, frames)
+            resize(&right, frames)
             for f in 0 ..< frames {
                 var sum: Float = 0
                 for c in 0 ..< channels { sum += base[f * channels + c] }
                 mono[f] = sum / Float(channels)
+                left[f] = base[f * channels]
+                right[f] = base[f * channels + min(1, channels - 1)]
             }
         }
     }

@@ -76,6 +76,82 @@ struct VisualizerTests {
         #expect(quietSum > loudSum * 0.7)
     }
 
+    // MARK: Speakers
+
+    /// Runs stereo audio through a fresh analyzer and returns the last speaker levels.
+    private func speakers(seconds: Double = 2, _ signal: (Double) -> (Float, Float)) throws -> SpeakerLevels {
+        let analyzer = try #require(VisualizerAnalyzer(sampleRate: Self.sampleRate))
+        let chunk = 512
+        var left = [Float](repeating: 0, count: chunk)
+        var right = [Float](repeating: 0, count: chunk)
+        var n = 0
+        while Double(n) < seconds * Self.sampleRate {
+            for i in 0 ..< chunk { (left[i], right[i]) = signal(Double(n + i) / Self.sampleRate) }
+            n += chunk
+            left.withUnsafeBufferPointer { l in right.withUnsafeBufferPointer { r in _ = analyzer.push(left: l, right: r) } }
+        }
+        return analyzer.frame.speakers
+    }
+
+    private static func tone(_ hz: Double, _ t: Double, _ amplitude: Float = 0.5) -> Float {
+        amplitude * Float(sin(2 * .pi * hz * t))
+    }
+
+    @Test func leftOnlyLightsLeft() throws {
+        let s = try speakers { t in (Self.tone(1000, t), 0) }
+        #expect(s.left > 0.8 && s.right < 0.1)
+        #expect(s.frontLeft > 0.8 && s.frontRight < 0.1)
+        // Panned hard, it stays in front.
+        #expect(s.surroundLeft < 0.1 && s.surroundRight < 0.1)
+    }
+
+    @Test func midsGoToLeftAndRight() throws {
+        let s = try speakers { t in let v = Self.tone(1000, t); return (v, v) }
+        #expect(s.frontLeft > 0.8 && s.frontRight > 0.8)
+        #expect(s.centre < 0.1 && s.sub < 0.1)
+        #expect(s.surroundLeft < 0.1 && s.surroundRight < 0.1)
+    }
+
+    @Test func highsGoToTheCentre() throws {
+        let s = try speakers { t in let v = Self.tone(8000, t); return (v, v) }
+        #expect(s.centre > 0.8)
+        #expect(s.frontLeft < 0.1 && s.frontRight < 0.1 && s.sub < 0.1)
+        // 2.0 and 2.1 still play them on both sides.
+        #expect(s.left > 0.8 && s.rightMain > 0.8)
+    }
+
+    @Test func lowsGoToTheSub() throws {
+        let s = try speakers { t in let v = Self.tone(50, t); return (v, v) }
+        #expect(s.sub > 0.8)
+        #expect(s.leftMain < 0.1 && s.rightMain < 0.1)
+        #expect(s.frontLeft < 0.1 && s.centre < 0.1)
+        #expect(s.left > 0.8)
+    }
+
+    @Test func ambienceGoesToTheSurrounds() throws {
+        let s = try speakers { t in let v = Self.tone(1000, t); return (v, -v) }
+        #expect(s.surroundLeft > 0.8 && s.surroundRight > 0.8)
+        #expect(s.frontLeft < 0.1 && s.centre < 0.1)
+    }
+
+    /// A full mix: each speaker gets its part.
+    @Test func mixSplitsAcrossSpeakers() throws {
+        let s = try speakers(seconds: 3) { t in
+            let low = Self.tone(55, t, 0.4), mid = Self.tone(700, t, 0.2), high = Self.tone(7000, t, 0.03)
+            let room = Self.tone(1300, t, 0.05)
+            return (low + mid + high + room, low + mid + high - room)
+        }
+        for (name, level) in [("sub", s.sub), ("FL", s.frontLeft), ("FR", s.frontRight), ("C", s.centre),
+                              ("SL", s.surroundLeft), ("SR", s.surroundRight)] {
+            #expect(level > 0.3, "\(name) = \(level)")
+        }
+    }
+
+    @Test func silenceLightsNoSpeaker() throws {
+        let s = try speakers { _ in (0, 0) }
+        #expect([s.left, s.right, s.centre, s.sub, s.surroundLeft, s.surroundRight].allSatisfy { $0 == 0 })
+    }
+
     // MARK: Palette
 
     private static func image(_ draw: (CGContext) -> Void) -> CGImage {
@@ -150,18 +226,30 @@ struct VisualizerTests {
         ctx.fill(CGRect(x: 8, y: 26, width: 48, height: 12))
     }
 
-    @Test(arguments: ["NavyGold", "LineArt"])
+    /// A stereo mix: the kick in the middle, a hi-hat-like burst on the left, a vocal-like
+    /// tone on the right and an out-of-phase pad for the surrounds.
+    private static func stereoMix(_ t: Double) -> (Float, Float) {
+        let kick = kickTrack(gain: 0.6)(t)
+        let eighth = t.truncatingRemainder(dividingBy: 0.25)
+        let hat = Float(exp(-eighth * 40)) * tone(6000, t, 0.25)
+        let vocal = tone(660, t, 0.2) * Float(0.6 + 0.4 * sin(t * 3))
+        let pad = tone(440, t, 0.08)
+        return (kick + hat + pad, kick + vocal - pad)
+    }
+
+    @Test(arguments: ["NavyGold", "LineArt", "Stereo", "TwoOne", "FiveOne"])
     func flowRenders(_ name: String) throws {
         let renderer = try #require(VisualizerRenderer(device: MTLCreateSystemDefaultDevice()))
         let cover = name == "LineArt" ? Self.lineArtCover : Self.navyGoldCover
-        let kick = Self.kickTrack(gain: 0.7)
+        renderer.speakerLayout = ["Stereo": .stereo, "TwoOne": .twoOne, "FiveOne": .fiveOne][name] ?? .off
         let analyzer = try #require(VisualizerAnalyzer(sampleRate: Self.sampleRate))
         var n = 0
-        var buffer = [Float](repeating: 0, count: 800) // one 60 fps frame of audio
+        var left = [Float](repeating: 0, count: 800) // one 60 fps frame of audio
+        var right = [Float](repeating: 0, count: 800)
         let image = try #require(renderer.renderOffscreen(width: 960, height: 600, seconds: 3, artwork: cover) { time, frame in
-            for i in 0 ..< buffer.count { buffer[i] = kick(Double(n + i) / Self.sampleRate) }
-            n += buffer.count
-            _ = buffer.withUnsafeBufferPointer { analyzer.push($0) }
+            for i in 0 ..< left.count { (left[i], right[i]) = Self.stereoMix(Double(n + i) / Self.sampleRate) }
+            n += left.count
+            left.withUnsafeBufferPointer { l in right.withUnsafeBufferPointer { r in _ = analyzer.push(left: l, right: r) } }
             frame = analyzer.frame
         })
 

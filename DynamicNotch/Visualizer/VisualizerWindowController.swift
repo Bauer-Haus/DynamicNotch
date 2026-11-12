@@ -10,7 +10,7 @@ import os
 import SwiftUI
 
 /// A borderless window that can take the keyboard: Esc closes, Space plays/pauses, the
-/// arrow keys skip tracks and A shows or hides the cover.
+/// arrow keys skip tracks, A shows or hides the cover and S changes the speaker pulses.
 final class VisualizerWindow: NSWindow {
     var onKey: ((NSEvent) -> Bool)?
 
@@ -127,8 +127,11 @@ final class VisualizerWindowController {
         case 123: MusicManager.shared.previousTrack(); model.showControls() // ←
         case 124: MusicManager.shared.nextTrack(); model.showControls() // →
         default:
-            guard event.charactersIgnoringModifiers?.lowercased() == "a" else { return false }
-            model.toggleArtwork()
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "a": model.toggleArtwork()
+            case "s": model.cycleSpeakerLayout()
+            default: return false
+            }
         }
         return true
     }

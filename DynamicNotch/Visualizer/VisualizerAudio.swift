@@ -55,9 +55,9 @@ final class VisualizerAudio {
         return CFAbsoluteTimeGetCurrent() - lastFrameTime
     }
 
-    private func consume(_ samples: UnsafeBufferPointer<Float>, sampleRate: Double) {
+    private func consume(_ samples: AudioSamples, sampleRate: Double) {
         if analyzer?.sampleRate != sampleRate { analyzer = VisualizerAnalyzer(sampleRate: sampleRate) }
-        guard let analyzer, analyzer.push(samples) else { return }
+        guard let analyzer, analyzer.push(left: samples.left, right: samples.right) else { return }
         lock.lock()
         Self.copy(analyzer.frame, into: &latest)
         lastFrameTime = CFAbsoluteTimeGetCurrent()
@@ -75,5 +75,6 @@ final class VisualizerAudio {
         target.loudness = source.loudness
         target.beatCount = source.beatCount
         target.beatStrength = source.beatStrength
+        target.speakers = source.speakers
     }
 }

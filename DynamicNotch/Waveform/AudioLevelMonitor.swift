@@ -16,8 +16,8 @@ protocol MonitorClock: AnyObject {
     func after(_ delay: TimeInterval, on queue: DispatchQueue, _ block: @escaping () -> Void)
 }
 
-/// Raw mono audio and its sample rate.
-typealias AudioSampleSink = (UnsafeBufferPointer<Float>, Double) -> Void
+/// Raw audio (mono, left and right) and its sample rate.
+typealias AudioSampleSink = (AudioSamples, Double) -> Void
 
 final class SystemMonitorClock: MonitorClock {
     func now() -> TimeInterval { CFAbsoluteTimeGetCurrent() }
@@ -155,7 +155,7 @@ final class AudioLevelMonitor {
         }
     }
 
-    /// Sends every buffer of the tap's mono audio, with its sample rate, to `sink` (on the
+    /// Sends every buffer of the tap's audio (mono, left and right), with its sample rate, to `sink` (on the
     /// audio queue) until replaced or cleared. Doesn't start the tap: pair with `retain()`.
     func setSampleSink(_ sink: AudioSampleSink?) {
         lock.lock()
@@ -324,7 +324,8 @@ final class AudioLevelMonitor {
 
     // MARK: Audio (runs on `audioQueue`)
 
-    private func receive(_ samples: UnsafeBufferPointer<Float>, analyzer: SpectrumAnalyzer, generation: Int) {
+    private func receive(_ block: AudioSamples, analyzer: SpectrumAnalyzer, generation: Int) {
+        let samples = block.mono
         var peak: Float = 0
         var analysed = false
         for v in samples {
@@ -351,7 +352,7 @@ final class AudioLevelMonitor {
         let sink = _sampleSink
         lock.unlock()
 
-        sink?(samples, analyzer.sampleRate)
+        sink?(block, analyzer.sampleRate)
 
         if firstConfirmation { Self.log.notice("Audio capture confirmed") }
     }

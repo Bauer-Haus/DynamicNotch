@@ -22,6 +22,12 @@ final class VisualizerModel: ObservableObject {
             Defaults[.visualizerShowsArtwork] = showsArtwork
         }
     }
+    @Published var speakerLayout: SpeakerLayout {
+        didSet {
+            renderer.speakerLayout = speakerLayout
+            Defaults[.visualizerSpeakers] = speakerLayout.rawValue
+        }
+    }
     @Published private(set) var controlsVisible = true
     var isHoveringControls = false
 
@@ -33,7 +39,9 @@ final class VisualizerModel: ObservableObject {
         guard let renderer = VisualizerRenderer(device: MTLCreateSystemDefaultDevice()) else { return nil }
         self.renderer = renderer
         self.showsArtwork = Defaults[.visualizerShowsArtwork]
+        self.speakerLayout = SpeakerLayout(rawValue: Defaults[.visualizerSpeakers]) ?? .stereo
         renderer.showsArtwork = showsArtwork
+        renderer.speakerLayout = speakerLayout
 
         let music = MusicManager.shared
         music.$albumArt
@@ -67,6 +75,12 @@ final class VisualizerModel: ObservableObject {
             withAnimation(.easeInOut(duration: 0.6)) { self.controlsVisible = false }
             NSCursor.setHiddenUntilMouseMoves(true)
         }
+    }
+
+    func cycleSpeakerLayout() {
+        let all = SpeakerLayout.allCases
+        speakerLayout = all[(speakerLayout.rawValue + 1) % all.count]
+        showControls()
     }
 
     func toggleArtwork() {
@@ -114,12 +128,47 @@ struct VisualizerView: View {
 
             Spacer()
 
+            speakerPicker
+
             GlassIconButton(icon: model.showsArtwork ? "photo.fill" : "photo",
                             help: model.showsArtwork ? "Hide Album Art (A)" : "Show Album Art (A)") {
                 model.toggleArtwork()
             }
         }
         .onHover { model.isHoveringControls = $0 }
+    }
+
+    /// Off / 2.0 / 2.1 / 5.1 speaker pulses.
+    private var speakerPicker: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "hifispeaker.2.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.leading, 10)
+                .padding(.trailing, 4)
+            ForEach(SpeakerLayout.allCases) { layout in
+                Button {
+                    withAnimation(.smooth(duration: 0.25)) { model.speakerLayout = layout }
+                    model.showControls()
+                } label: {
+                    Text(layout.title)
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(model.speakerLayout == layout ? .white : .white.opacity(0.6))
+                        .frame(minWidth: 34)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 8)
+                        .background {
+                            if model.speakerLayout == layout { Capsule().fill(.white.opacity(0.16)) }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .glassEffect(.regular, in: .capsule)
+        .help("Speaker pulses (S)")
+        .padding(.trailing, 8)
     }
 
     private var songPanel: some View {

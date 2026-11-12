@@ -243,7 +243,7 @@ final class AudioWorld: AudioTapSystem {
         for (tap, content) in deliveries {
             let buffer = Self.buffer(content, count: samples)
             let delivered = runOn(tap.queue) {
-                buffer.withUnsafeBufferPointer { tap.handler($0) }
+                buffer.withUnsafeBufferPointer { tap.handler(AudioSamples(mono: $0)) }
             }
             if !delivered { ok = false }
             lock.lock()

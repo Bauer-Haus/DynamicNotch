@@ -86,6 +86,8 @@ extension Defaults.Keys {
     // MARK: Visualizer
     /// Whether the full-screen visualizer shows the cover.
     static let visualizerShowsArtwork = Key<Bool>("visualizerShowsArtwork", default: true)
+    /// Its speaker pulses (`SpeakerLayout` raw value: off, 2.0, 2.1, 5.1).
+    static let visualizerSpeakers = Key<Int>("visualizerSpeakers", default: 1)
 
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)

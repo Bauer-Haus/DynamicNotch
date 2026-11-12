@@ -10,6 +10,32 @@ import AppKit
 import MetalKit
 import simd
 
+/// The speaker pulses shown over the flow.
+enum SpeakerLayout: Int, CaseIterable, Identifiable {
+    case off, stereo, twoOne, fiveOne
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return "Off"
+        case .stereo: return "2.0"
+        case .twoOne: return "2.1"
+        case .fiveOne: return "5.1"
+        }
+    }
+
+    /// Levels in the shader's slot order: left, right, centre, sub, surround left, surround right.
+    func slots(_ s: SpeakerLevels) -> [Float] {
+        switch self {
+        case .off: return [0, 0, 0, 0, 0, 0]
+        case .stereo: return [s.left, s.right, 0, 0, 0, 0]
+        case .twoOne: return [s.leftMain, s.rightMain, 0, s.sub, 0, 0]
+        case .fiveOne: return [s.frontLeft, s.frontRight, s.centre, s.sub, s.surroundLeft, s.surroundRight]
+        }
+    }
+}
+
 /// An MTKView that renders at a capped pixel count: the scenes are soft light, so a 5K
 /// display doesn't need every pixel drawn, and the fans stay quiet.
 final class VisualizerMetalView: MTKView {
@@ -38,7 +64,7 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     // Layout of the uniform buffer (VizUniforms in VisualizerShader), in float4s.
     private enum Slot {
         static let frame = 0, energy = 1, beat = 2, art = 3, colours = 4, rippleAge = 9, rippleStrength = 10
-        static let count = 11
+        static let speakerLevel = 11, speakerRingAge = 13, speakerRingStrength = 16, count = 19
     }
 
     /// The cover's half-size as a fraction of the screen height.
@@ -56,6 +82,7 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     // Settings, set on the main thread.
     var showsArtwork = true
     var isPlaying = true
+    var speakerLayout: SpeakerLayout = .stereo
 
     // Animation state (main thread, in `draw`).
     private var frame = VisualizerFrame()
@@ -74,6 +101,18 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
     private var colours = [SIMD3<Float>](repeating: .zero, count: 5)
     private var targetColours = [SIMD3<Float>](repeating: .zero, count: 5)
     private var artVersion = 0
+    // Speaker pulses: smoothed level, a slower average to spot hits against, and two rings
+    // per speaker that travel out on each hit.
+    private var speakerLevel = [Float](repeating: 0, count: 6)
+    private var speakerAverage = [Float](repeating: 0, count: 6)
+    private var speakerLastHit = [CFTimeInterval](repeating: 0, count: 6)
+    private var speakerRingAge = [Float](repeating: 10, count: 12)
+    private var speakerRingStrength = [Float](repeating: 0, count: 12)
+    private var speakerNextRing = [Int](repeating: 0, count: 6)
+    /// Left and right channel levels for the flow itself (whatever the speaker layout).
+    private var stereo = SIMD2<Float>(repeating: 0)
+    private var layoutAlpha: Float = 1
+    private var shownLayout: SpeakerLayout = .stereo
     /// Where frames come from: the live tap (replaced for offscreen renders).
     private var readAudio: (inout VisualizerFrame) -> TimeInterval = { VisualizerAudio.shared.read(into: &$0) }
 
@@ -281,11 +320,54 @@ final class VisualizerRenderer: NSObject, MTKViewDelegate {
             colours[i] += (targetColours[i] - colours[i]) * k
         }
 
+        updateSpeakers(dt: dt, now: now, live: live)
+
         uniforms[Slot.energy] = energy
-        uniforms[Slot.beat] = SIMD4(beat, 0, 0, 0)
+        uniforms[Slot.beat] = SIMD4(beat, Float(shownLayout.rawValue), layoutAlpha, 0)
         uniforms[Slot.art] = SIMD4(Self.artHalfSize, artScale, artAlpha, isPlaying ? 1 : 0)
         for i in 0 ..< 5 { uniforms[Slot.colours + i] = SIMD4(colours[i], 1) }
         uniforms[Slot.rippleAge] = rippleAge
         uniforms[Slot.rippleStrength] = rippleStrength
+        uniforms[Slot.speakerLevel] = SIMD4(speakerLevel[0], speakerLevel[1], speakerLevel[2], speakerLevel[3])
+        uniforms[Slot.speakerLevel + 1] = SIMD4(speakerLevel[4], speakerLevel[5], stereo.x, stereo.y)
+        for i in 0 ..< 3 {
+            uniforms[Slot.speakerRingAge + i] = SIMD4(speakerRingAge[4 * i], speakerRingAge[4 * i + 1],
+                                                      speakerRingAge[4 * i + 2], speakerRingAge[4 * i + 3])
+            uniforms[Slot.speakerRingStrength + i] = SIMD4(speakerRingStrength[4 * i], speakerRingStrength[4 * i + 1],
+                                                           speakerRingStrength[4 * i + 2], speakerRingStrength[4 * i + 3])
+        }
+    }
+
+    /// Smooths each speaker's level and sends a ring out from it when it's hit: a jump
+    /// well above its own recent average (a kick for the sub, a snare or vocal for the others).
+    private func updateSpeakers(dt: Float, now: CFTimeInterval, live: Bool) {
+        // Changing layout: fade the old pulses out, then the new ones in.
+        if shownLayout != speakerLayout {
+            layoutAlpha = max(0, layoutAlpha - dt / 0.25)
+            if layoutAlpha == 0 {
+                shownLayout = speakerLayout
+                for i in 0 ..< 6 { speakerLevel[i] = 0; speakerAverage[i] = 0 }
+                for i in 0 ..< 12 { speakerRingStrength[i] = 0 }
+            }
+        } else {
+            layoutAlpha = min(1, layoutAlpha + dt / 0.35)
+        }
+        let targetStereo = live ? SIMD2(frame.speakers.left, frame.speakers.right) : SIMD2(repeating: 0.3 * energy.w)
+        for k in 0 ..< 2 { stereo[k] = Self.approach(stereo[k], targetStereo[k], dt: dt, rise: 0.05, fall: 0.25) }
+        let targets = live ? shownLayout.slots(frame.speakers) : [Float](repeating: 0, count: 6)
+        for i in 0 ..< 6 {
+            let target = targets[i]
+            speakerLevel[i] = Self.approach(speakerLevel[i], target, dt: dt, rise: i == 3 ? 0.03 : 0.025, fall: i == 3 ? 0.2 : 0.14)
+            speakerAverage[i] += (target - speakerAverage[i]) * (1 - expf(-dt / 0.45))
+            let jump = target - speakerAverage[i]
+            if live, target > 0.3, jump > 0.16, now - speakerLastHit[i] > (i == 3 ? 0.22 : 0.16) {
+                speakerLastHit[i] = now
+                let ring = 2 * i + speakerNextRing[i]
+                speakerNextRing[i] ^= 1
+                speakerRingAge[ring] = 0
+                speakerRingStrength[ring] = min(1, 0.35 + 1.6 * jump)
+            }
+        }
+        for i in 0 ..< 12 { speakerRingAge[i] += dt }
     }
 }
