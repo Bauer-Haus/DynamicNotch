@@ -189,4 +189,10 @@ class NotchViewModel: NSObject, ObservableObject {
         self.edgeAutoOpenActive = false
     }
 
+    /// Closes the notch and opens the full-screen visualizer on this notch's display.
+    func openVisualizer() {
+        close()
+        let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) }
+        VisualizerWindowController.shared.show(on: screen)
+    }
 }

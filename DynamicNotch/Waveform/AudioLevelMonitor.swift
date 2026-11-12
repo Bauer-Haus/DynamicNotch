@@ -16,6 +16,9 @@ protocol MonitorClock: AnyObject {
     func after(_ delay: TimeInterval, on queue: DispatchQueue, _ block: @escaping () -> Void)
 }
 
+/// Raw mono audio and its sample rate.
+typealias AudioSampleSink = (UnsafeBufferPointer<Float>, Double) -> Void
+
 final class SystemMonitorClock: MonitorClock {
     func now() -> TimeInterval { CFAbsoluteTimeGetCurrent() }
     func after(_ delay: TimeInterval, on queue: DispatchQueue, _ block: @escaping () -> Void) {
@@ -93,6 +96,8 @@ final class AudioLevelMonitor {
     /// When `ensureRunning` last asked the setup queue for an answer that hasn't come.
     private var _pingSentAt: TimeInterval?
     private var _stuckHandled = false
+    /// Also gets every buffer of raw audio (the full-screen visualizer), on `audioQueue`.
+    private var _sampleSink: AudioSampleSink?
 
     init(system: AudioTapSystem, clock: MonitorClock,
          onStuck: @escaping () -> Void = AudioLevelMonitor.restartApp) {
@@ -148,6 +153,14 @@ final class AudioLevelMonitor {
                 self.teardown()
             }
         }
+    }
+
+    /// Sends every buffer of the tap's mono audio, with its sample rate, to `sink` (on the
+    /// audio queue) until replaced or cleared. Doesn't start the tap: pair with `retain()`.
+    func setSampleSink(_ sink: AudioSampleSink?) {
+        lock.lock()
+        _sampleSink = sink
+        lock.unlock()
     }
 
     /// The app whose audio should drive the bars (MusicManager's now-playing bundle id).
@@ -335,7 +348,10 @@ final class AudioLevelMonitor {
         }
         if _heardSignal && _signalSamples < SpectrumAnalyzer.fftSize { _signalSamples += samples.count }
         if analysed { _levels = analyzer.levels }
+        let sink = _sampleSink
         lock.unlock()
+
+        sink?(samples, analyzer.sampleRate)
 
         if firstConfirmation { Self.log.notice("Audio capture confirmed") }
     }

@@ -83,6 +83,10 @@ extension Defaults.Keys {
         default: MusicControlButton.defaultLayout
     )
     
+    // MARK: Visualizer
+    /// Whether the full-screen visualizer shows the cover.
+    static let visualizerShowsArtwork = Key<Bool>("visualizerShowsArtwork", default: true)
+
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)
     

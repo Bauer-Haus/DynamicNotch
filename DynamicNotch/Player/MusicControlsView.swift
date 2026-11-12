@@ -81,6 +81,11 @@ struct MusicControlsView: View {
             }
         case .output:
             OutputPickerButton(size: slot.pointSize)
+        case .visualizer:
+            HoverButton(icon: "sparkles", iconColor: .gray, scale: .medium, pointSize: slot.pointSize) {
+                vm.openVisualizer()
+            }
+            .help("Open Visualizer")
         case .none:
             EmptyView()
         }

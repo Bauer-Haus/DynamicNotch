@@ -22,6 +22,12 @@ struct DynamicNotchApp: App {
         // rounded top corners, square bottom ones); a
         // template image, so macOS tints it to match the menu bar.
         MenuBarExtra("DynamicNotch", image: "menubar", isInserted: $showMenuBarIcon) {
+            Button("Open Visualizer") {
+                DispatchQueue.main.async {
+                    VisualizerWindowController.shared.show()
+                }
+            }
+            Divider()
             Button("Settings") {
                 DispatchQueue.main.async {
                     SettingsWindowController.shared.showWindow()

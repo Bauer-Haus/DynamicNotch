@@ -31,6 +31,7 @@ struct MusicPlayerView: View {
                 AlbumWaveform(width: side, height: side)
                     .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                     .frame(width: side, height: side)
+                    .modifier(OpensVisualizer(vm: vm))
                     .hiddenWhileClosedNotchCovers(vm)
                     // Level with the title's capitals.
                     .padding(.top, max(0, OpenPlayer.waveformCentre - side / 2))
@@ -45,5 +46,21 @@ struct MusicPlayerView: View {
             MusicControlsView()
                 .padding(.top, OpenPlayer.controlsTop)
         }
+    }
+}
+
+/// Clicking the open player's waveform opens the full-screen visualizer; it grows a little
+/// under the pointer to show it can be clicked.
+private struct OpensVisualizer: ViewModifier {
+    let vm: NotchViewModel
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(hovering ? 1.15 : 1)
+            .contentShape(Rectangle().inset(by: -6))
+            .onHover { h in withAnimation(.smooth(duration: 0.2)) { hovering = h } }
+            .onTapGesture { vm.openVisualizer() }
+            .help("Open Visualizer")
     }
 }
