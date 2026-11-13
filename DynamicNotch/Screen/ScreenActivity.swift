@@ -2,8 +2,8 @@
 //  ScreenActivity.swift
 //  DynamicNotch
 //
-//  Whether anyone can see the screens, so the waveform can stop when they are asleep or
-//  locked.
+//  Whether anyone can see the screens, so the waveform and visualizer can stop when they
+//  are asleep or locked.
 //
 
 import AppKit

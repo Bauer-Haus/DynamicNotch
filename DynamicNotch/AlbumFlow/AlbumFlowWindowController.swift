@@ -6,42 +6,19 @@
 //
 
 import AppKit
+import Combine
 import os
-import SwiftUI
-
-/// A borderless window that takes the keyboard.
-final class AlbumFlowWindow: NSWindow {
-    var onKey: ((NSEvent) -> Bool)?
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    override func keyDown(with event: NSEvent) {
-        if onKey?(event) != true { super.keyDown(with: event) }
-    }
-
-    override func cancelOperation(_ sender: Any?) {
-        AlbumFlowWindowController.shared.escape()
-    }
-
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "w" {
-            AlbumFlowWindowController.shared.close()
-            return true
-        }
-        return super.performKeyEquivalent(with: event)
-    }
-}
 
 @MainActor
 final class AlbumFlowWindowController {
     static let shared = AlbumFlowWindowController()
-    private static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "albumFlow")
+    private static let log = os.Logger.app("albumFlow")
 
-    private var window: AlbumFlowWindow?
+    private var window: FullScreenOverlayWindow?
     private var model: AlbumFlowModel?
     private var previousApp: NSRunningApplication?
     private var observers: [Any] = []
+    private var songChanges: AnyCancellable?
 
     var isOpen: Bool { window != nil }
 
@@ -57,40 +34,37 @@ final class AlbumFlowWindowController {
             window?.makeKeyAndOrderFront(nil)
             return
         }
-        let mouse = NSEvent.mouseLocation
-        guard let screen = screen ?? NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main else { return }
+        guard let screen = screen ?? FullScreenOverlayWindow.screenUnderPointer() else { return }
         let model = AlbumFlowModel()
         let music = MusicManager.shared
-        model.load(startingAt: music.isPlayerIdle ? nil : (music.album, music.artistName))
+        model.load(startingAt: music.isPlayerIdle ? nil : Self.nowPlaying())
         model.showControls()
+        // Turns to each new album as the music moves on. Like the notch's waveform and the
+        // visualizer, it goes by the cover changing as well as the song's name (whichever
+        // arrives), then reads the song once its details have settled.
+        songChanges = Publishers.Merge(music.$albumArt.map { _ in () }, music.$songTitle.map { _ in () })
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak model] in
+                MainActor.assumeIsolated { model?.follow(Self.nowPlaying()) }
+            }
 
-        let window = AlbumFlowWindow(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        // Above the menu bar and the notch, like the visualizer.
-        window.level = .mainMenu + 4
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .ignoresCycle]
-        window.isOpaque = true
-        window.backgroundColor = .black
-        window.hasShadow = false
-        window.isReleasedWhenClosed = false
-        window.acceptsMouseMovedEvents = true
-        window.contentView = NSHostingView(rootView: AlbumFlowScreen(model: model) { [weak self] in self?.close() })
-        window.setFrame(screen.frame, display: false)
+        let window = FullScreenOverlayWindow(screen: screen, content: AlbumFlowScreen(model: model) { [weak self] in self?.close() })
         window.onKey = { [weak self] event in self?.handleKey(event) ?? false }
-        window.alphaValue = 0
+        window.onEscape = { [weak self] in self?.escape() }
+        window.onClose = { [weak self] in self?.close() }
 
-        let front = NSWorkspace.shared.frontmostApplication
-        previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
+        previousApp = .frontmostOtherApp
         self.window = window
         self.model = model
 
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.4
-            window.animator().alphaValue = 1
-        }
+        window.present(fadeDuration: 0.4)
         observe(window)
         Self.log.notice("Album Flow opened")
+    }
+
+    private static func nowPlaying() -> AlbumFlowModel.NowPlaying {
+        let music = MusicManager.shared
+        return .init(title: music.songTitle, artist: music.artistName, album: music.album)
     }
 
     /// Esc: turns a flipped cover back first, then closes.
@@ -102,17 +76,10 @@ final class AlbumFlowWindowController {
         guard let window else { return }
         self.window = nil
         model = nil
+        songChanges = nil
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers = []
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.25
-            window.animator().alphaValue = 0
-        }, completionHandler: {
-            MainActor.assumeIsolated {
-                window.orderOut(nil)
-                window.contentView = nil
-            }
-        })
+        window.dismiss(fadeDuration: 0.25)
         previousApp?.activate()
         previousApp = nil
         Self.log.notice("Album Flow closed")
@@ -147,16 +114,22 @@ final class AlbumFlowWindowController {
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard NSWorkspace.shared.frontmostApplication?.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
-                self?.previousApp = nil
-                self?.close()
+                guard let self, let front = NSWorkspace.shared.frontmostApplication, !front.isThisApp else { return }
+                // Reading the Music library the first time hands focus to a background helper
+                // for a moment; that isn't the user switching apps, so take it back.
+                if front.activationPolicy != .regular {
+                    Self.log.notice("Album Flow: \(front.bundleIdentifier ?? "?", privacy: .public) took focus; taking it back")
+                    NSApp.activate(ignoringOtherApps: true)
+                    self.window?.makeKeyAndOrderFront(nil)
+                    return
+                }
+                Self.log.notice("Album Flow: closing, \(front.bundleIdentifier ?? "?", privacy: .public) is now in front")
+                self.previousApp = nil
+                self.close()
             }
         })
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let window = self.window else { return }
-                if let frame = (window.screen ?? NSScreen.main)?.frame { window.setFrame(frame, display: true) }
-            }
+            MainActor.assumeIsolated { self?.window?.refitToScreen() }
         })
     }
 }

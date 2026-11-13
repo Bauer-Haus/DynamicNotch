@@ -85,9 +85,18 @@ struct AlbumFlowScreen: View {
             let album = model.albums[model.centreIndex]
             let top = layout.size.height - layout.centre.y + layout.side * 0.5 + layout.side * 0.42
             VStack(spacing: 3) {
-                Text(album.title)
-                    .font(.system(size: max(13, layout.side * 0.05), weight: .bold))
-                    .foregroundStyle(.white)
+                HStack(spacing: 8) {
+                    if model.playingIndex == model.centreIndex {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: max(11, layout.side * 0.04)))
+                            .foregroundStyle(Color(white: 0.75))
+                            .symbolEffect(.variableColor.iterative, isActive: MusicManager.shared.isPlaying)
+                            .help("Playing now")
+                    }
+                    Text(album.title)
+                        .font(.system(size: max(13, layout.side * 0.05), weight: .bold))
+                        .foregroundStyle(.white)
+                }
                 Text(album.artist)
                     .font(.system(size: max(12, layout.side * 0.042)))
                     .foregroundStyle(Color(white: 0.62))

@@ -220,3 +220,66 @@ struct AlbumFlowTests {
         #expect(view.album(at: NSPoint(x: layout.centre.x, y: layout.centre.y - layout.side * 0.7)) == nil)
     }
 }
+
+@Suite("Album Flow follows the music")
+@MainActor
+struct AlbumFlowFollowTests {
+    private func albums() -> [LibraryAlbum] {
+        var albums: [LibraryAlbum] = []
+        for i in 0 ..< 10 {
+            let albumArtist: String = i == 4 ? "Various Artists" : "Artist \(i)"
+            let songArtist: String = i == 4 ? "Guest" : "Artist \(i)"
+            let track = LibraryTrack(persistentID: UInt64(100 + i), title: "Song", artist: songArtist,
+                                     disc: 1, number: 1, duration: 200)
+            albums.append(LibraryAlbum(id: UInt64(i + 1), title: "Album \(i)", artist: albumArtist, year: 2000, tracks: [track]))
+        }
+        return albums
+    }
+
+    private func song(_ title: String, _ artist: String, _ album: String) -> AlbumFlowModel.NowPlaying {
+        .init(title: title, artist: artist, album: album)
+    }
+
+    @Test func findsTheAlbum() {
+        let albums = albums()
+        #expect(AlbumFlowModel.index(of: song("Song", "Artist 3", "Album 3"), in: albums) == 3)
+        // A compilation: matched by one of its songs' artist.
+        #expect(AlbumFlowModel.index(of: song("Song", "Guest", "Album 4"), in: albums) == 4)
+        #expect(AlbumFlowModel.index(of: song("Other", "Nobody", "Not Here"), in: albums) == nil)
+    }
+
+    @Test func findsTheAlbumSpelledDifferently() {
+        let single = LibraryAlbum(id: 50, title: "Life Is Good (feat. Drake) - Single", artist: "Future", year: 2020,
+                                  tracks: [LibraryTrack(persistentID: 500, title: "Life Is Good (feat. Drake)", artist: "Future",
+                                                        disc: 1, number: 1, duration: 237)])
+        let albums = albums() + [single]
+        // Now Playing without " - Single", in other case.
+        #expect(AlbumFlowModel.index(of: song("Life Is Good (feat. Drake)", "Future", "life is good (feat. drake)"), in: albums) == 10)
+        // No album name at all: found by the song and its artist.
+        #expect(AlbumFlowModel.index(of: song("Life Is Good (feat. Drake)", "Future & Drake", ""), in: albums) == 10)
+        // Accents.
+        let accented = LibraryAlbum(id: 60, title: "Café", artist: "Zoë", year: 2001,
+                                    tracks: [LibraryTrack(persistentID: 600, title: "Un", artist: "Zoë", disc: 1, number: 1, duration: 100)])
+        #expect(AlbumFlowModel.index(of: song("Un", "Zoe", "Cafe"), in: albums + [accented]) == 11)
+    }
+
+    @Test func turnsToTheNewAlbum() {
+        let model = AlbumFlowModel()
+        model.show(albums(), covers: [:], at: 2)
+        model.follow(song("Song", "Artist 7", "Album 7"))
+        #expect(model.playingIndex == 7)
+        #expect(model.target == 7)
+        // A song not in the library: stays put.
+        model.follow(song("Live", "Someone", "Radio"))
+        #expect(model.playingIndex == nil && model.target == 7)
+    }
+
+    @Test func waitsWhileYouReadAnotherAlbumsSongs() {
+        let model = AlbumFlowModel()
+        model.show(albums(), covers: [:], at: 2)
+        model.toggleFlip()
+        model.follow(song("Song", "Artist 5", "Album 5"))
+        #expect(model.playingIndex == 5)
+        #expect(model.target == 2 && model.isFlipped)
+    }
+}

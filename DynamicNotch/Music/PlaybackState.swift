@@ -51,7 +51,7 @@ import os
 /// Where each song's cover comes from and where it goes: `log show --predicate
 /// 'subsystem == "io.bauerhaus.boringnotch" && category == "artwork"'`.
 enum ArtworkLog {
-    static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "artwork")
+    static let log = os.Logger.app("artwork")
 
     /// A short fingerprint of a cover, to tell covers apart in the log.
     static func id(_ data: Data?) -> String {

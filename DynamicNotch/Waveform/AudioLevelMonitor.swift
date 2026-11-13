@@ -48,7 +48,7 @@ final class AudioLevelMonitor {
     static let bandCount = SpectrumAnalyzer.bandCount
 
     /// `log stream --predicate 'subsystem == "io.bauerhaus.boringnotch" && category == "waveform"'`
-    static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "waveform")
+    static let log = os.Logger.app("waveform")
 
     static let watchdogInterval: TimeInterval = 0.5
     static let releaseGrace: TimeInterval = 0.5

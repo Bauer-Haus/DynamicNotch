@@ -5,7 +5,6 @@
 //  App icons by bundle ID, cached.
 //
 
-import SwiftUI
 import AppKit
 
 /// App icons by bundle id. Looking an app up through LaunchServices on every view update
@@ -26,8 +25,4 @@ func AppIconAsNSImage(for bundleID: String) -> NSImage? {
     appIcon.size = NSSize(width: 256, height: 256)
     appIconCache.setObject(appIcon, forKey: bundleID as NSString)
     return appIcon
-}
-
-func AppIcon(for bundleID: String) -> Image {
-    Image(nsImage: AppIconAsNSImage(for: bundleID) ?? NSWorkspace.shared.icon(for: .applicationBundle))
 }

@@ -113,7 +113,7 @@ enum AlbumGrouping {
 /// queue: its objects aren't thread-safe.
 final class AlbumLibrary: @unchecked Sendable {
     static let shared = AlbumLibrary()
-    private static let log = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "DynamicNotch", category: "albumFlow")
+    private static let log = os.Logger.app("albumFlow")
     /// The playlist albums are played from, so Music plays them in order.
     static let playlistName = "Album Flow"
 

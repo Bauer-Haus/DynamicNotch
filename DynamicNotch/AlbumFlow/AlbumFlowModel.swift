@@ -72,6 +72,10 @@ final class AlbumFlowModel: ObservableObject {
     @Published private(set) var flip: CGFloat = 0
     @Published private(set) var flippedAlbum: LibraryAlbum?
     @Published var controlsVisible = true
+    /// The album playing now, if it's in the library.
+    @Published private(set) var playingIndex: Int?
+    /// What's playing, kept for when the library finishes loading.
+    private var playing: NowPlaying?
 
     /// The scroll bar's position, 0...1 (its own object, as it changes every frame).
     let scrollPosition = ScrollPosition()
@@ -102,19 +106,16 @@ final class AlbumFlowModel: ObservableObject {
         abs(position - target) < 0.0005 && abs(flip - flipTarget) < 0.001 && loadingCovers.isEmpty
     }
 
-    func load(startingAt playing: (album: String, artist: String)?) {
+    func load(startingAt playing: NowPlaying?) {
         status = .loading
+        self.playing = playing
         Task {
             do {
                 let albums = try await AlbumLibrary.shared.load()
                 self.albums = albums
                 status = albums.isEmpty ? .empty : .ready
-                var start = 0
-                if let playing, !playing.album.isEmpty {
-                    start = albums.firstIndex { $0.title == playing.album && ($0.artist == playing.artist || $0.tracks.contains { $0.artist == playing.artist }) }
-                        ?? albums.firstIndex { $0.title == playing.album }
-                        ?? 0
-                }
+                playingIndex = self.playing.flatMap { Self.index(of: $0, in: albums) }
+                let start = playingIndex ?? 0
                 position = CGFloat(start)
                 target = position
                 updateCentre()
@@ -124,6 +125,63 @@ final class AlbumFlowModel: ObservableObject {
             }
         }
     }
+
+    /// The song playing, as the notch knows it.
+    struct NowPlaying: Equatable, Sendable {
+        var title: String
+        var artist: String
+        var album: String
+    }
+
+    /// Where the album of `song` is in `albums`. Now Playing doesn't always spell an album as
+    /// the library does (" - Single", accents, featured artists), so it also looks for the
+    /// song itself: by album and artist, then by the song and its artist, then by album alone.
+    nonisolated static func index(of song: NowPlaying, in albums: [LibraryAlbum]) -> Int? {
+        let album = normalized(song.album), title = normalized(song.title), artist = normalized(song.artist)
+        func sameArtist(_ other: String) -> Bool {
+            let other = normalized(other)
+            guard !artist.isEmpty, !other.isEmpty else { return false }
+            return other == artist || other.contains(artist) || artist.contains(other)
+        }
+        if !album.isEmpty, let i = albums.firstIndex(where: { normalized($0.title) == album
+            && (sameArtist($0.artist) || $0.tracks.contains { sameArtist($0.artist) }) }) {
+            return i
+        }
+        if !title.isEmpty {
+            let withSong = albums.indices.filter { i in albums[i].tracks.contains { normalized($0.title) == title && sameArtist($0.artist) } }
+            // Several albums with the song (a single and its album): the one named like it.
+            if let i = withSong.first(where: { album.isEmpty || normalized(albums[$0].title).hasPrefix(album) || album.hasPrefix(normalized(albums[$0].title)) })
+                ?? withSong.first {
+                return i
+            }
+        }
+        if !album.isEmpty, let i = albums.firstIndex(where: { normalized($0.title) == album }) { return i }
+        return nil
+    }
+
+    /// Lower case, without accents, and without Music's " - Single" / " - EP" endings.
+    nonisolated static func normalized(_ text: String) -> String {
+        var s = text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for suffix in [" - single", " - ep"] where s.hasSuffix(suffix) { s.removeLast(suffix.count) }
+        return s
+    }
+
+    /// The song changed: marks its album as playing and, when it's a different album, turns
+    /// to it (unless you're looking at another album's songs).
+    func follow(_ song: NowPlaying) {
+        playing = song
+        guard status == .ready else { return }
+        let index = Self.index(of: song, in: albums)
+        Self.log.notice("Album Flow: playing \(song.title, privacy: .public) from \(song.album, privacy: .public) by \(song.artist, privacy: .public): \(index.map { "album \($0) (\(self.albums[$0].title))" } ?? "not in the library", privacy: .public)")
+        guard index != playingIndex else { return }
+        playingIndex = index
+        guard let index, index != Int(target.rounded()) else { return }
+        if isFlipped { return }
+        go(to: index)
+    }
+
+    private static let log = os.Logger.app("albumFlow")
 
     /// Shows `albums` without reading the library (tests).
     func show(_ albums: [LibraryAlbum], covers: [UInt64: CGImage], at index: Int) {
